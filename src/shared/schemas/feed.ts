@@ -17,7 +17,12 @@ export const FeedQueryInputSchema = z.object({
   mode: FeedModeSchema.default('chrono'),
   filters: FeedFiltersSchema.partial().optional(),
   cursor: z.string().nullable().optional(),
-  limit: z.number().int().min(1).max(50).default(24)
+  limit: z.number().int().min(1).max(50).default(24),
+  /**
+   * Discovery feeds must omit Sorted items (now playing + up-next).
+   * Prefer live ids from the renderer; main also merges persisted play session.
+   */
+  excludeVideoIds: z.array(z.string().min(1)).max(150).optional()
 })
 
 export type FeedQueryInput = z.infer<typeof FeedQueryInputSchema>

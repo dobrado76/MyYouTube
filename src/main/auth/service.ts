@@ -1,5 +1,5 @@
 import type { AuthStatus } from '@shared/schemas/auth'
-import { getSettings, patchSettings } from '../db/repositories/settings'
+import { getSettings, patchSettingsSync } from '../db/repositories/settings'
 import {
   clearCredentials,
   getCredentialsStatus,
@@ -53,14 +53,14 @@ export function saveGoogleCredentials(input: {
 }): CredentialsStatus {
   const status = upsertCredentials(input)
   // Saving real credentials implies live API use.
-  patchSettings({ youtubeProvider: 'live' })
+  patchSettingsSync({ youtubeProvider: 'live' })
   return status
 }
 
 export function clearGoogleCredentials(): CredentialsStatus {
   clearCredentials()
   clearTokens()
-  patchSettings({ youtubeProvider: 'mock' })
+  patchSettingsSync({ youtubeProvider: 'mock' })
   return getCredentialsStatus()
 }
 
@@ -92,7 +92,7 @@ export async function signIn(): Promise<AuthStatus> {
     refreshToken: tokens.refreshToken ?? existing?.refreshToken,
     accountLabel: tokens.accountLabel ?? existing?.accountLabel
   })
-  patchSettings({ youtubeProvider: 'live' })
+  patchSettingsSync({ youtubeProvider: 'live' })
   return getAuthStatus()
 }
 

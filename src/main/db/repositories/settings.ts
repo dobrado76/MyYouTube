@@ -11,6 +11,9 @@ import { getDb } from '../index'
 
 const SETTINGS_KEY = 'app'
 
+/** Serialize read-modify-write so concurrent patches cannot wipe playQueue / lastRoute. */
+let writeChain: Promise<unknown> = Promise.resolve()
+
 function syncHardwareAccelerationBootFile(settings: AppSettings): void {
   try {
     writeHardwareAccelerationPreference(settings.hardwareAcceleration)
@@ -19,64 +22,73 @@ function syncHardwareAccelerationBootFile(settings: AppSettings): void {
   }
 }
 
+function parseSettingsRow(valueJson: string): AppSettings {
+  const parsed = JSON.parse(valueJson) as Record<string, unknown>
+  return AppSettingsSchema.parse({
+    ...parsed,
+    appearance: {
+      ...DEFAULT_APPEARANCE,
+      ...(typeof parsed.appearance === 'object' && parsed.appearance ? parsed.appearance : {})
+    },
+    player: {
+      ...DEFAULT_PLAYER,
+      ...(typeof parsed.player === 'object' && parsed.player ? parsed.player : {})
+    },
+    searchHistory: Array.isArray(parsed.searchHistory) ? parsed.searchHistory : [],
+    playQueue: Array.isArray(parsed.playQueue) ? parsed.playQueue : [],
+    playHistory: Array.isArray(parsed.playHistory) ? parsed.playHistory : [],
+    nowPlaying: parsed.nowPlaying === undefined ? null : parsed.nowPlaying,
+    activeChannel: parsed.activeChannel === undefined ? null : parsed.activeChannel,
+    lastRoute: typeof parsed.lastRoute === 'string' && parsed.lastRoute ? parsed.lastRoute : '/'
+  })
+}
+
 export function getSettings(): AppSettings {
   const row = getDb()
     .prepare('SELECT value_json FROM application_settings WHERE key = ?')
     .get(SETTINGS_KEY) as { value_json: string } | undefined
 
   if (!row) {
-    return setSettings(DEFAULT_SETTINGS)
+    return setSettingsSync(DEFAULT_SETTINGS)
   }
 
   try {
-    const parsed = JSON.parse(row.value_json) as Record<string, unknown>
-    return AppSettingsSchema.parse({
-      ...parsed,
-      appearance: {
-        ...DEFAULT_APPEARANCE,
-        ...(typeof parsed.appearance === 'object' && parsed.appearance
-          ? parsed.appearance
-          : {})
-      },
-      player: {
-        ...DEFAULT_PLAYER,
-        ...(typeof parsed.player === 'object' && parsed.player ? parsed.player : {})
-      },
-      searchHistory: Array.isArray(parsed.searchHistory) ? parsed.searchHistory : [],
-      playQueue: Array.isArray(parsed.playQueue) ? parsed.playQueue : [],
-      playHistory: Array.isArray(parsed.playHistory) ? parsed.playHistory : [],
-      nowPlaying: parsed.nowPlaying === undefined ? null : parsed.nowPlaying
-    })
+    return parseSettingsRow(row.value_json)
   } catch {
     // Soft-recover — never wipe a live play queue because one field failed to parse.
     try {
       const parsed = JSON.parse(row.value_json) as Record<string, unknown>
-      const recovered = AppSettingsSchema.parse({
-        ...DEFAULT_SETTINGS,
-        ...parsed,
-        appearance: {
-          ...DEFAULT_APPEARANCE,
-          ...(typeof parsed.appearance === 'object' && parsed.appearance
-            ? parsed.appearance
-            : {})
-        },
-        player: {
-          ...DEFAULT_PLAYER,
-          ...(typeof parsed.player === 'object' && parsed.player ? parsed.player : {})
-        },
-        searchHistory: Array.isArray(parsed.searchHistory) ? parsed.searchHistory : [],
-        playQueue: Array.isArray(parsed.playQueue) ? parsed.playQueue : [],
-        playHistory: Array.isArray(parsed.playHistory) ? parsed.playHistory : [],
-        nowPlaying: parsed.nowPlaying === undefined ? null : parsed.nowPlaying
-      })
-      return setSettings(recovered)
+      const recovered = parseSettingsRow(
+        JSON.stringify({
+          ...DEFAULT_SETTINGS,
+          ...parsed,
+          appearance: {
+            ...DEFAULT_APPEARANCE,
+            ...(typeof parsed.appearance === 'object' && parsed.appearance
+              ? parsed.appearance
+              : {})
+          },
+          player: {
+            ...DEFAULT_PLAYER,
+            ...(typeof parsed.player === 'object' && parsed.player ? parsed.player : {})
+          },
+          searchHistory: Array.isArray(parsed.searchHistory) ? parsed.searchHistory : [],
+          playQueue: Array.isArray(parsed.playQueue) ? parsed.playQueue : [],
+          playHistory: Array.isArray(parsed.playHistory) ? parsed.playHistory : [],
+          nowPlaying: parsed.nowPlaying === undefined ? null : parsed.nowPlaying,
+          activeChannel: parsed.activeChannel === undefined ? null : parsed.activeChannel,
+          lastRoute:
+            typeof parsed.lastRoute === 'string' && parsed.lastRoute ? parsed.lastRoute : '/'
+        })
+      )
+      return setSettingsSync(recovered)
     } catch {
-      return setSettings(DEFAULT_SETTINGS)
+      return setSettingsSync(DEFAULT_SETTINGS)
     }
   }
 }
 
-export function setSettings(settings: AppSettings): AppSettings {
+function setSettingsSync(settings: AppSettings): AppSettings {
   getDb()
     .prepare(
       `
@@ -90,10 +102,12 @@ export function setSettings(settings: AppSettings): AppSettings {
   return settings
 }
 
-export function patchSettings(patch: AppSettingsPatch): AppSettings {
-  const current = getSettings()
-  // Only apply keys that are explicitly present — never treat `undefined` as "clear".
-  const next = AppSettingsSchema.parse({
+export function setSettings(settings: AppSettings): AppSettings {
+  return setSettingsSync(settings)
+}
+
+function applyPatch(current: AppSettings, patch: AppSettingsPatch): AppSettings {
+  return AppSettingsSchema.parse({
     ...current,
     ...(patch.theme !== undefined ? { theme: patch.theme } : {}),
     ...(patch.hideShorts !== undefined ? { hideShorts: patch.hideShorts } : {}),
@@ -119,6 +133,8 @@ export function patchSettings(patch: AppSettingsPatch): AppSettings {
     ...(patch.nowPlaying !== undefined ? { nowPlaying: patch.nowPlaying } : {}),
     ...(patch.playQueue !== undefined ? { playQueue: patch.playQueue } : {}),
     ...(patch.playHistory !== undefined ? { playHistory: patch.playHistory } : {}),
+    ...(patch.activeChannel !== undefined ? { activeChannel: patch.activeChannel } : {}),
+    ...(patch.lastRoute !== undefined ? { lastRoute: patch.lastRoute } : {}),
     appearance: {
       ...current.appearance,
       ...(patch.appearance ?? {})
@@ -128,5 +144,24 @@ export function patchSettings(patch: AppSettingsPatch): AppSettings {
       ...(patch.player ?? {})
     }
   })
-  return setSettings(next)
+}
+
+function patchSettingsUnlocked(patch: AppSettingsPatch): AppSettings {
+  return setSettingsSync(applyPatch(getSettings(), patch))
+}
+
+/** Sync helper for main-process call sites that cannot await. Prefer `patchSettings`. */
+export function patchSettingsSync(patch: AppSettingsPatch): AppSettings {
+  return patchSettingsUnlocked(patch)
+}
+
+/** Serialized patch — safe against concurrent queue / route / filter writes. */
+export async function patchSettings(patch: AppSettingsPatch): Promise<AppSettings> {
+  const task = (): AppSettings => patchSettingsUnlocked(patch)
+  const result = writeChain.then(task, task)
+  writeChain = result.then(
+    () => undefined,
+    () => undefined
+  )
+  return result
 }

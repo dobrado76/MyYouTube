@@ -35,7 +35,7 @@ const SEARCH_DEBOUNCE_MS = 280
 
 export function HistoryPage(): JSX.Element {
   const navigate = useNavigate()
-  const { watchNow, enqueue } = useAppStore()
+  const { watchNow, enqueue, openChannel } = useAppStore()
   const [section, setSection] = useState<SectionId>('watched')
   const [draft, setDraft] = useState('')
   const [query, setQuery] = useState('')
@@ -205,9 +205,20 @@ export function HistoryPage(): JSX.Element {
                       {video.title}
                     </button>
                     <p>
-                      <span className="history-row-channel">
+                      <button
+                        type="button"
+                        className="linkish channel-link history-row-channel"
+                        title={`Open channel: ${video.channelTitle ?? video.channelId}`}
+                        onClick={() => {
+                          openChannel({
+                            id: video.channelId,
+                            title: video.channelTitle ?? video.channelId
+                          })
+                          navigate(`/channel/${video.channelId}`)
+                        }}
+                      >
                         {video.channelTitle ?? video.channelId}
-                      </span>
+                      </button>
                       {video.durationSeconds != null
                         ? ` · ${formatDuration(video.durationSeconds)}`
                         : ''}

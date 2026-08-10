@@ -2,6 +2,7 @@ import { useEffect, type JSX } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { Layout } from './components/Layout'
 import { flushPlaybackSession } from './lib/playbackFlush'
+import { persistCurrentRoute } from './lib/sessionRoute'
 import { useAppStore } from './store/appStore'
 
 export default function App(): JSX.Element {
@@ -11,11 +12,12 @@ export default function App(): JSX.Element {
     void bootstrap()
   }, [bootstrap])
 
-  // Persist exact playback position + queue before the window is destroyed.
+  // Persist exact playback position + queue + active tab before the window is destroyed.
   useEffect(() => {
     return window.myyoutube.app.onFlushBeforeQuit(async () => {
       await flushPlaybackSession()
       await useAppStore.getState().persistPlaybackNow()
+      await persistCurrentRoute()
     })
   }, [])
 
@@ -41,6 +43,7 @@ export default function App(): JSX.Element {
         <Route index element={null} />
         <Route path="subscriptions" element={null} />
         <Route path="search" element={null} />
+        <Route path="channel/:channelId" element={null} />
         <Route path="queue" element={null} />
         <Route path="history" element={null} />
         <Route path="account" element={null} />

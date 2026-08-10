@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type JSX } from 'react'
+import { useNavigate, useParams } from 'react-router-dom'
 import type { Video } from '@shared/schemas/video'
 import { VideoCard } from '../components/VideoCard'
 import { callApi } from '../lib/api'
@@ -14,20 +15,40 @@ type Props = {
   active: boolean
 }
 
-export function HomePage({ active }: Props): JSX.Element {
+export function ChannelPage({ active }: Props): JSX.Element {
   const activated = useActivated(active)
-  const { auth, hideShorts, unwatchedOnly, setHideShorts, setUnwatchedOnly, signIn } =
-    useAppStore()
+  const navigate = useNavigate()
+  const { channelId: routeChannelId } = useParams()
+  const {
+    activeChannel,
+    openChannel,
+    clearActiveChannel,
+    hideShorts,
+    unwatchedOnly,
+    setHideShorts,
+    setUnwatchedOnly
+  } = useAppStore()
   const sortedIds = useSortedVideoIds()
+
+  const channelId = activeChannel?.id ?? routeChannelId ?? null
+  const channelTitle = activeChannel?.title ?? channelId ?? 'Channel'
+
   const [items, setItems] = useState<Video[]>([])
   const [cursor, setCursor] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
-  const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [sessionKey, setSessionKey] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!routeChannelId) return
+    if (activeChannel?.id === routeChannelId) return
+    openChannel({ id: routeChannelId, title: routeChannelId })
+  }, [routeChannelId, activeChannel?.id, openChannel])
 
   const load = useCallback(
     async (opts?: { reset?: boolean; cursor?: string | null }) => {
+      if (!channelId) return
       setError(null)
       try {
         const page = await callApi(() =>
@@ -36,7 +57,8 @@ export function HomePage({ active }: Props): JSX.Element {
             cursor: opts?.cursor ?? null,
             filters: {
               hideShorts,
-              unwatchedOnly
+              unwatchedOnly,
+              channelId
             },
             excludeVideoIds: sortedVideoIdList(),
             limit: 24
@@ -44,29 +66,48 @@ export function HomePage({ active }: Props): JSX.Element {
         )
         setItems((prev) => (opts?.reset ? page.items : [...prev, ...page.items]))
         setCursor(page.nextCursor)
+        if (opts?.reset) {
+          const fromPage = page.items[0]?.channelTitle
+          if (fromPage) openChannel({ id: channelId, title: fromPage })
+        }
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load feed')
+        setError(err instanceof Error ? err.message : 'Failed to load channel')
       } finally {
         setLoading(false)
       }
     },
-    [hideShorts, unwatchedOnly]
+    [channelId, hideShorts, unwatchedOnly, openChannel]
   )
+
+  const nextSessionKey =
+    channelId != null ? `${channelId}|${hideShorts ? 1 : 0}|${unwatchedOnly ? 1 : 0}` : null
 
   useEffect(() => {
     if (!activated) return
+    if (!channelId || !nextSessionKey) {
+      setItems([])
+      setCursor(null)
+      setSessionKey(null)
+      setLoading(false)
+      return
+    }
+    // Keep-alive: returning to this tab with the same channel + filters keeps scroll/items.
+    if (sessionKey === nextSessionKey) return
+    setSessionKey(nextSessionKey)
     setLoading(true)
+    setItems([])
+    setCursor(null)
     void load({ reset: true })
-  }, [load, activated])
+  }, [activated, channelId, nextSessionKey, sessionKey, load])
 
+  // Discovery ≠ Sorted: queued / now-playing never appear on Channel (same as Home).
   const visibleItems = useMemo(
     () => filterDiscoveryVideos(items, sortedIds, unwatchedOnly),
     [items, sortedIds, unwatchedOnly]
   )
 
-  // After triage clears the visible page, keep fetching until something shows or the feed ends.
   useEffect(() => {
-    if (!activated || loading || refreshing || error) return
+    if (!activated || loading || loadingMore || error) return
     if (visibleItems.length > 0 || !cursor) return
     let cancelled = false
     setLoadingMore(true)
@@ -77,24 +118,7 @@ export function HomePage({ active }: Props): JSX.Element {
       cancelled = true
       setLoadingMore(false)
     }
-  }, [activated, visibleItems.length, cursor, loading, refreshing, error, load])
-
-  async function refresh(): Promise<void> {
-    setRefreshing(true)
-    setError(null)
-    try {
-      if (!auth?.signedIn) {
-        await signIn()
-      }
-      await callApi(() => window.myyoutube.feed.refresh())
-      setLoading(true)
-      await load({ reset: true })
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Refresh failed')
-    } finally {
-      setRefreshing(false)
-    }
-  }
+  }, [activated, visibleItems.length, cursor, loading, loadingMore, error, load])
 
   async function hideVideo(videoId: string): Promise<void> {
     await callApi(() => window.myyoutube.videos.hide(videoId))
@@ -106,6 +130,22 @@ export function HomePage({ active }: Props): JSX.Element {
     setItems((prev) => prev.filter((v) => v.id !== videoId))
   }
 
+  function closeChannel(): void {
+    clearActiveChannel()
+    setItems([])
+    setCursor(null)
+    setSessionKey(null)
+    navigate('/')
+  }
+
+  if (!channelId) {
+    return (
+      <section>
+        <p className="muted">No channel selected. Open one from a video card.</p>
+      </section>
+    )
+  }
+
   const busy = loading || loadingMore
   const trulyEmpty = !busy && visibleItems.length === 0 && !cursor
 
@@ -113,7 +153,7 @@ export function HomePage({ active }: Props): JSX.Element {
     <section>
       <div className="page-header">
         <div>
-          <h1>Personal feed</h1>
+          <h1 title={channelTitle}>{channelTitle}</h1>
           <div className="header-filters" style={{ marginTop: '0.65rem' }}>
             <label className="filter-row">
               <input
@@ -133,26 +173,21 @@ export function HomePage({ active }: Props): JSX.Element {
             </label>
           </div>
         </div>
-        <button type="button" className="primary" disabled={refreshing} onClick={() => void refresh()}>
-          {refreshing ? 'Refreshing…' : 'Refresh'}
+        <button type="button" className="ghost" onClick={closeChannel} title="Close channel">
+          Close
         </button>
       </div>
 
-      {!auth?.signedIn ? (
-        <p className="muted">
-          Sign in (mock mode works offline) and refresh to import subscription uploads.
-        </p>
-      ) : null}
-
       {error ? <p className="error">{error}</p> : null}
       {busy && visibleItems.length === 0 ? (
-        <p className="muted">{loadingMore ? 'Loading more…' : 'Loading cached feed…'}</p>
+        <p className="muted">{loadingMore ? 'Loading more…' : 'Loading channel…'}</p>
       ) : null}
 
       {trulyEmpty ? (
         <p className="empty">
-          No videos yet. Use Refresh to sync subscriptions
-          {hideShorts ? ' (Shorts are hidden)' : ''}.
+          No videos for this channel in the local library
+          {hideShorts ? ' (Shorts are hidden)' : ''}
+          {unwatchedOnly ? ' (watched and queued are hidden)' : ''}.
         </p>
       ) : null}
 

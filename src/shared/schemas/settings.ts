@@ -55,6 +55,12 @@ export const PlayerSettingsSchema = z.object({
 export type PlayerSettings = z.infer<typeof PlayerSettingsSchema>
 export const DEFAULT_PLAYER: PlayerSettings = PlayerSettingsSchema.parse({})
 
+export const ActiveChannelSchema = z.object({
+  id: z.string().min(1),
+  title: z.string().min(1)
+})
+export type ActiveChannel = z.infer<typeof ActiveChannelSchema>
+
 export const AppSettingsSchema = z.object({
   theme: ThemeModeSchema.default('system'),
   appearance: AppearanceSchema.default(DEFAULT_APPEARANCE),
@@ -76,7 +82,11 @@ export const AppSettingsSchema = z.object({
   /** Up-next queue (does not include nowPlaying). */
   playQueue: z.array(QueueItemSchema).max(100).default([]),
   /** Recently played items for Previous (most recent last). */
-  playHistory: z.array(QueueItemSchema).max(50).default([])
+  playHistory: z.array(QueueItemSchema).max(50).default([]),
+  /** Single Channel tab (one at a time; survives restart until closed). */
+  activeChannel: ActiveChannelSchema.nullable().default(null),
+  /** Last UI route (`/search?q=…`, `/channel/:id`, …) restored on launch. */
+  lastRoute: z.string().min(1).max(500).default('/')
 })
 
 export type AppSettings = z.infer<typeof AppSettingsSchema>
@@ -97,7 +107,9 @@ export const AppSettingsPatchSchema = z.object({
   hardwareAcceleration: z.boolean().optional(),
   nowPlaying: QueueItemSchema.nullable().optional(),
   playQueue: z.array(QueueItemSchema).max(100).optional(),
-  playHistory: z.array(QueueItemSchema).max(50).optional()
+  playHistory: z.array(QueueItemSchema).max(50).optional(),
+  activeChannel: ActiveChannelSchema.nullable().optional(),
+  lastRoute: z.string().min(1).max(500).optional()
 })
 export type AppSettingsPatch = z.infer<typeof AppSettingsPatchSchema>
 

@@ -1,5 +1,5 @@
-import type { JSX } from 'react'
 import { useNavigate } from 'react-router-dom'
+import type { JSX, MouseEvent } from 'react'
 import { videoToQueueItem } from '@shared/schemas/queue'
 import type { Video } from '@shared/schemas/video'
 import { callApi, formatAge, formatDuration } from '../lib/api'
@@ -15,6 +15,7 @@ export function VideoCard({ video, onHide, onMarkWatched }: Props): JSX.Element 
   const navigate = useNavigate()
   const watchNow = useAppStore((s) => s.watchNow)
   const enqueue = useAppStore((s) => s.enqueue)
+  const openChannel = useAppStore((s) => s.openChannel)
   const inQueue = useAppStore(
     (s) => s.nowPlaying?.id === video.id || s.queue.some((q) => q.id === video.id)
   )
@@ -24,18 +25,29 @@ export function VideoCard({ video, onHide, onMarkWatched }: Props): JSX.Element 
     onHide?.(video.id)
   }
 
-  function handleWatch(): void {
+  function handleWatch(event?: MouseEvent): void {
     watchNow(videoToQueueItem(video))
-    navigate(`/watch/${video.id}`)
+    // Shift-click opens the Play tab; normal click stays browsing (mini player).
+    if (event?.shiftKey) {
+      navigate(`/watch/${video.id}`)
+    }
   }
 
   function handleQueue(): void {
     enqueue(videoToQueueItem(video))
   }
 
+  function handleChannel(event: MouseEvent): void {
+    event.preventDefault()
+    event.stopPropagation()
+    const title = video.channelTitle ?? video.channelId
+    openChannel({ id: video.channelId, title })
+    navigate(`/channel/${video.channelId}`)
+  }
+
   return (
     <article className={`video-card${video.watched ? ' watched' : ''}`}>
-      <button type="button" className="thumb-wrap" onClick={handleWatch}>
+      <button type="button" className="thumb-wrap" onClick={(e) => handleWatch(e)}>
         {video.thumbnailUrl ? (
           <img src={video.thumbnailUrl} alt="" loading="lazy" />
         ) : (
@@ -50,14 +62,21 @@ export function VideoCard({ video, onHide, onMarkWatched }: Props): JSX.Element 
           <button
             type="button"
             className="linkish video-title"
-            onClick={handleWatch}
-            title={video.title}
+            onClick={(e) => handleWatch(e)}
+            title={`${video.title} (Shift-click: open Play tab)`}
           >
             {video.title}
           </button>
         </h3>
         <p className="video-subline">
-          {video.channelTitle ?? video.channelId}
+          <button
+            type="button"
+            className="linkish channel-link"
+            onClick={handleChannel}
+            title={`Open channel: ${video.channelTitle ?? video.channelId}`}
+          >
+            {video.channelTitle ?? video.channelId}
+          </button>
           {video.publishedAt ? ` · ${formatAge(video.publishedAt)}` : ''}
           {video.watched ? ' · Watched' : ''}
         </p>
@@ -67,9 +86,9 @@ export function VideoCard({ video, onHide, onMarkWatched }: Props): JSX.Element 
           <button
             type="button"
             className="icon-btn primary"
-            onClick={handleWatch}
-            title="Watch now"
-            aria-label="Watch now"
+            onClick={(e) => handleWatch(e)}
+            title="Watch now (mini player) · Shift-click: Play tab"
+            aria-label="Watch now in mini player"
           >
             <PlayIcon />
           </button>

@@ -4,18 +4,13 @@ import type { Video } from '@shared/schemas/video'
 import { SearchIcon } from '../components/icons'
 import { VideoCard } from '../components/VideoCard'
 import { callApi } from '../lib/api'
+import { filterDiscoveryVideos, useSortedVideoIds } from '../lib/discovery'
 import { useAppStore } from '../store/appStore'
 
 export function SearchPage(): JSX.Element {
   const [params, setParams] = useSearchParams()
   const { settings, recordSearch, unwatchedOnly, setUnwatchedOnly } = useAppStore()
-  const nowPlayingId = useAppStore((s) => s.nowPlaying?.id ?? null)
-  const queueIds = useAppStore((s) => s.queue.map((q) => q.id).join('\0'))
-  const queuedIds = useMemo(() => {
-    const ids = new Set(queueIds ? queueIds.split('\0') : [])
-    if (nowPlayingId) ids.add(nowPlayingId)
-    return ids
-  }, [nowPlayingId, queueIds])
+  const sortedIds = useSortedVideoIds()
   const history = settings.searchHistory
   const lastFetchedQuery = useRef<string | null>(null)
   const inflightQuery = useRef<string | null>(null)
@@ -28,11 +23,10 @@ export function SearchPage(): JSX.Element {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const visibleItems = items.filter((video) => {
-    if (queuedIds.has(video.id)) return false
-    if (unwatchedOnly && video.watched) return false
-    return true
-  })
+  const visibleItems = useMemo(
+    () => filterDiscoveryVideos(items, sortedIds, unwatchedOnly),
+    [items, sortedIds, unwatchedOnly]
+  )
 
   async function fetchSearch(q: string, force = false): Promise<void> {
     const trimmed = q.trim()

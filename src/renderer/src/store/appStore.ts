@@ -1,7 +1,8 @@
 import { create } from 'zustand'
+import { normalizeLastRoute, routeFromHash } from '@shared/lib/lastRoute'
 import type { AuthStatus } from '@shared/schemas/auth'
 import type { QueueItem } from '@shared/schemas/queue'
-import type { AppSettings, AppSettingsPatch } from '@shared/schemas/settings'
+import type { ActiveChannel, AppSettings, AppSettingsPatch } from '@shared/schemas/settings'
 import { DEFAULT_SETTINGS } from '@shared/schemas/settings'
 import { callApi } from '../lib/api'
 import { applyAppearance } from '../lib/theme'
@@ -10,6 +11,8 @@ const MAX_SEARCH_HISTORY = 25
 const MAX_QUEUE = 100
 const MAX_PLAY_HISTORY = 50
 
+export type { ActiveChannel }
+
 type AppState = {
   ready: boolean
   auth: AuthStatus | null
@@ -17,6 +20,13 @@ type AppState = {
   error: string | null
   hideShorts: boolean
   unwatchedOnly: boolean
+  /**
+   * Tab to show until React Router catches up to the hash restore.
+   * Prevents a one-frame Home mount/fetch on startup.
+   */
+  startupRoute: string | null
+  /** Single Channel tab session (one at a time; opening another replaces it). */
+  activeChannel: ActiveChannel | null
   /** Active Play-tab video id (derived from nowPlaying). */
   playVideoId: string | null
   nowPlaying: QueueItem | null
@@ -24,11 +34,14 @@ type AppState = {
   /** Recently played for Previous (most recent last). */
   playHistory: QueueItem[]
   bootstrap: () => Promise<void>
+  clearStartupRoute: () => void
   refreshAuth: () => Promise<void>
   patchSettings: (patch: AppSettingsPatch) => Promise<void>
   recordSearch: (query: string) => Promise<void>
   setHideShorts: (value: boolean) => void
   setUnwatchedOnly: (value: boolean) => void
+  openChannel: (channel: ActiveChannel) => void
+  clearActiveChannel: () => void
   /** @deprecated prefer watchNow / clearNowPlaying */
   setPlayVideoId: (videoId: string | null) => void
   watchNow: (item: QueueItem) => void
@@ -58,41 +71,54 @@ type AppState = {
 }
 
 let playbackPersistTimer: ReturnType<typeof setTimeout> | null = null
-/** Serialize playback writes so a stale in-flight patch cannot wipe a newer queue. */
-let playbackWriteChain: Promise<void> = Promise.resolve()
+/** Serialize ALL settings patches (queue, route, filters) to avoid lost updates. */
+let settingsWriteChain: Promise<void> = Promise.resolve()
 
 function pushPlayHistory(history: QueueItem[], item: QueueItem): QueueItem[] {
   return [...history.filter((h) => h.id !== item.id), item].slice(-MAX_PLAY_HISTORY)
 }
 
-function withLivePlayback(
+function withLiveSession(
   settings: AppSettings,
   get: () => AppState
 ): AppSettings {
-  const { nowPlaying, queue, playHistory } = get()
+  const { nowPlaying, queue, playHistory, activeChannel } = get()
   return {
     ...settings,
     nowPlaying,
     playQueue: queue,
-    playHistory
+    playHistory,
+    activeChannel
   }
 }
 
-async function writePlaybackSettings(get: () => AppState, set: (partial: Partial<AppState>) => void): Promise<void> {
-  const run = async (): Promise<void> => {
-    // Read immediately before IPC so we always persist the latest session.
+async function enqueueSettingsWrite(run: () => Promise<void>): Promise<void> {
+  const done = settingsWriteChain.then(run, run)
+  settingsWriteChain = done.then(
+    () => undefined,
+    () => undefined
+  )
+  await done
+}
+
+async function writePlaybackSettings(
+  get: () => AppState,
+  set: (partial: Partial<AppState>) => void
+): Promise<void> {
+  await enqueueSettingsWrite(async () => {
+    // Read at write time so rapid enqueues are not lost to a stale snapshot.
     const { nowPlaying, queue, playHistory } = get()
     const settings = await callApi(() =>
       window.myyoutube.settings.patch({ nowPlaying, playQueue: queue, playHistory })
     )
-    // Never let a round-tripped patch replace live queue/nowPlaying/history.
-    set({ settings: withLivePlayback(settings, get) })
-  }
-  playbackWriteChain = playbackWriteChain.then(run, run)
-  await playbackWriteChain
+    set({ settings: withLiveSession(settings, get) })
+  })
 }
 
-function schedulePlaybackPersist(get: () => AppState, set: (partial: Partial<AppState>) => void): void {
+function schedulePlaybackPersist(
+  get: () => AppState,
+  set: (partial: Partial<AppState>) => void
+): void {
   if (playbackPersistTimer) clearTimeout(playbackPersistTimer)
   playbackPersistTimer = setTimeout(() => {
     playbackPersistTimer = null
@@ -100,7 +126,10 @@ function schedulePlaybackPersist(get: () => AppState, set: (partial: Partial<App
   }, 800)
 }
 
-function persistPlayback(get: () => AppState, set: (partial: Partial<AppState>) => void): void {
+function persistPlayback(
+  get: () => AppState,
+  set: (partial: Partial<AppState>) => void
+): void {
   void writePlaybackSettings(get, set)
 }
 
@@ -111,6 +140,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   error: null,
   hideShorts: DEFAULT_SETTINGS.hideShorts,
   unwatchedOnly: DEFAULT_SETTINGS.unwatchedOnly,
+  startupRoute: null,
+  activeChannel: null,
   playVideoId: null,
   nowPlaying: null,
   queue: [],
@@ -129,25 +160,39 @@ export const useAppStore = create<AppState>((set, get) => ({
       ])
       get().applyTheme(settings)
       const nowPlaying = settings.nowPlaying
+      // Restore tab in the hash BEFORE ready/Layout so Home does not mount first.
+      const target = normalizeLastRoute(settings.lastRoute, {
+        activeChannelId: settings.activeChannel?.id ?? null,
+        playVideoId: nowPlaying?.id ?? null
+      })
+      if (routeFromHash(window.location.hash) !== target) {
+        const hash = `#${target.startsWith('/') ? target : `/${target}`}`
+        window.location.hash = hash
+      }
       set({
         settings,
         auth,
         hideShorts: settings.hideShorts,
         unwatchedOnly: settings.unwatchedOnly,
+        activeChannel: settings.activeChannel,
         nowPlaying,
         queue: settings.playQueue,
         playHistory: settings.playHistory,
         playVideoId: nowPlaying?.id ?? null,
+        startupRoute: target,
         ready: true,
         error: null
       })
     } catch (error) {
       set({
         ready: true,
+        startupRoute: '/',
         error: error instanceof Error ? error.message : 'Failed to start'
       })
     }
   },
+
+  clearStartupRoute: () => set({ startupRoute: null }),
 
   refreshAuth: async () => {
     const auth = await callApi(() => window.myyoutube.auth.getStatus())
@@ -155,14 +200,16 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   patchSettings: async (patch) => {
-    const settings = await callApi(() => window.myyoutube.settings.patch(patch))
-    get().applyTheme(settings)
-    // Playback session lives in memory after bootstrap — never rehydrate queue
-    // from a settings patch response (stale IPC can otherwise wipe up-next).
-    set({
-      settings: withLivePlayback(settings, get),
-      hideShorts: settings.hideShorts,
-      unwatchedOnly: settings.unwatchedOnly
+    await enqueueSettingsWrite(async () => {
+      const settings = await callApi(() => window.myyoutube.settings.patch(patch))
+      get().applyTheme(settings)
+      // Session fields live in memory after bootstrap — never rehydrate from a
+      // settings patch response (stale IPC can otherwise wipe up-next).
+      set({
+        settings: withLiveSession(settings, get),
+        hideShorts: settings.hideShorts,
+        unwatchedOnly: settings.unwatchedOnly
+      })
     })
   },
 
@@ -185,6 +232,21 @@ export const useAppStore = create<AppState>((set, get) => ({
   setUnwatchedOnly: (value) => {
     set({ unwatchedOnly: value })
     void get().patchSettings({ unwatchedOnly: value })
+  },
+
+  openChannel: (channel) => {
+    const title = channel.title.trim() || channel.id
+    const activeChannel = { id: channel.id, title }
+    const prev = get().activeChannel
+    if (prev?.id === activeChannel.id && prev.title === activeChannel.title) return
+    set({ activeChannel })
+    void get().patchSettings({ activeChannel })
+  },
+
+  clearActiveChannel: () => {
+    if (!get().activeChannel) return
+    set({ activeChannel: null })
+    void get().patchSettings({ activeChannel: null })
   },
 
   setPlayVideoId: (videoId) => {
@@ -264,6 +326,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (!item) return
     queue.splice(toIndex, 0, item)
     set({ queue })
+    persistPlayback(get, set)
   },
 
   flushPlayback: () => {

@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent, type JSX } from 'react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
+import { ChannelPage } from '../routes/ChannelPage'
 import { HistoryPage } from '../routes/HistoryPage'
 import { HomePage } from '../routes/HomePage'
 import { QueuePage } from '../routes/QueuePage'
@@ -7,9 +8,12 @@ import { SearchPage } from '../routes/SearchPage'
 import { SettingsPage } from '../routes/SettingsPage'
 import { SubscriptionsPage } from '../routes/SubscriptionsPage'
 import { WatchPage } from '../routes/WatchPage'
+import { routeFromLocation } from '@shared/lib/lastRoute'
+import { useSessionRoutePersistence } from '../lib/sessionRoute'
 import { useAppStore } from '../store/appStore'
 import {
   AccountIcon,
+  ChannelIcon,
   HistoryIcon,
   HomeIcon,
   PlayIcon,
@@ -21,31 +25,57 @@ import {
 
 export function Layout(): JSX.Element {
   const navigate = useNavigate()
-  const { pathname } = useLocation()
-  const { settings, auth, playVideoId, queue, clearNowPlaying, openWatchById } = useAppStore()
+  const { pathname, search } = useLocation()
+  const {
+    settings,
+    auth,
+    playVideoId,
+    queue,
+    activeChannel,
+    startupRoute,
+    clearStartupRoute,
+    clearNowPlaying,
+    openWatchById
+  } = useAppStore()
   const [query, setQuery] = useState('')
   const history = settings.searchHistory
 
-  const showHome = pathname === '/'
-  const showSubscriptions = pathname.startsWith('/subscriptions')
-  const showSearch = pathname.startsWith('/search')
-  const showQueue = pathname.startsWith('/queue')
-  const showHistory = pathname.startsWith('/history')
-  const showAccount = pathname.startsWith('/account')
-  const showSettings = pathname.startsWith('/settings')
+  useSessionRoutePersistence()
+
+  // Prefer startupRoute until the router hash matches — avoids Home flashing/fetching first.
+  const viewPath = startupRoute ?? pathname
+  useEffect(() => {
+    if (!startupRoute) return
+    const current = routeFromLocation(pathname, search)
+    if (current !== startupRoute) {
+      navigate(startupRoute, { replace: true })
+      return
+    }
+    clearStartupRoute()
+  }, [startupRoute, pathname, search, navigate, clearStartupRoute])
+
+  const showHome = viewPath === '/'
+  const showSubscriptions = viewPath.startsWith('/subscriptions')
+  const showSearch = viewPath.startsWith('/search')
+  const showChannel = viewPath.startsWith('/channel')
+  const showQueue = viewPath.startsWith('/queue')
+  const showHistory = viewPath.startsWith('/history')
+  const showAccount = viewPath.startsWith('/account')
+  const showSettings = viewPath.startsWith('/settings')
   const showPrefs = showAccount || showSettings
-  const showPlay = pathname === '/play' || pathname.startsWith('/watch/')
+  const showPlay = viewPath === '/play' || viewPath.startsWith('/watch/')
   const cinemaPlay = showPlay && settings.player.mode === 'cinema'
   const playPath = playVideoId ? `/watch/${playVideoId}` : '/play'
+  const channelPath = activeChannel ? `/channel/${activeChannel.id}` : '/channel'
   const queueCount = queue.length + (playVideoId ? 1 : 0)
 
   // Deep-link / refresh: hydrate nowPlaying when opening /watch/:id with no session.
   useEffect(() => {
-    const match = pathname.match(/^\/watch\/([^/]+)/)
+    const match = viewPath.match(/^\/watch\/([^/]+)/)
     if (!match?.[1]) return
     if (playVideoId != null) return
     void openWatchById(match[1]).catch(() => undefined)
-  }, [pathname, playVideoId, openWatchById])
+  }, [viewPath, playVideoId, openWatchById])
 
   function runSearch(raw: string): void {
     const q = raw.trim()
@@ -104,6 +134,18 @@ export function Layout(): JSX.Element {
               >
                 <SearchIcon />
               </NavLink>
+              {activeChannel ? (
+                <NavLink
+                  to={channelPath}
+                  title={activeChannel.title}
+                  aria-label={`Channel: ${activeChannel.title}`}
+                  className={({ isActive }) =>
+                    `tab-link${isActive || showChannel ? ' active' : ''}`
+                  }
+                >
+                  <ChannelIcon />
+                </NavLink>
+              ) : null}
             </div>
             <div className="tab-bar-group" aria-label="Library">
               <NavLink
@@ -206,13 +248,16 @@ export function Layout(): JSX.Element {
 
       <main className="main">
         <div className="tab-panel" hidden={!showHome}>
-          <HomePage />
+          <HomePage active={showHome} />
         </div>
         <div className="tab-panel" hidden={!showSubscriptions}>
           <SubscriptionsPage />
         </div>
         <div className="tab-panel" hidden={!showSearch}>
           <SearchPage />
+        </div>
+        <div className="tab-panel" hidden={!showChannel}>
+          <ChannelPage active={showChannel} />
         </div>
         <div className="tab-panel" hidden={!showQueue}>
           <QueuePage />

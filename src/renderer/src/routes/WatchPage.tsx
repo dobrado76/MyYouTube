@@ -49,7 +49,8 @@ export function WatchPage(): JSX.Element {
     playNextInQueue,
     playPreviousInQueue,
     finishCurrentAndPlayNext,
-    updateNowPlayingProgress
+    updateNowPlayingProgress,
+    openChannel
   } = useAppStore()
   const player = settings.player
   const [video, setVideo] = useState<VideoDetail | null>(null)
@@ -318,7 +319,20 @@ export function WatchPage(): JSX.Element {
         <h1 style={{ margin: '0 0 0.35rem', fontSize: '1.4rem' }}>{video.title}</h1>
         <div className="watch-channel-row">
           <p className="muted">
-            {video.channelTitle ?? video.channelId}
+            <button
+              type="button"
+              className="linkish channel-link"
+              title={`Open channel: ${video.channelTitle ?? video.channelId}`}
+              onClick={() => {
+                openChannel({
+                  id: video.channelId,
+                  title: video.channelTitle ?? video.channelId
+                })
+                navigate(`/channel/${video.channelId}`)
+              }}
+            >
+              {video.channelTitle ?? video.channelId}
+            </button>
             {video.publishedAt ? ` · ${formatAge(video.publishedAt)}` : ''}
             {video.durationSeconds != null ? ` · ${formatDuration(video.durationSeconds)}` : ''}
             {video.watched ? ' · Watched' : ''}

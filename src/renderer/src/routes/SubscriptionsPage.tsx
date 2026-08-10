@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type JSX } from 'react'
+import { useNavigate } from 'react-router-dom'
 import type { Channel, ChannelPreference } from '@shared/schemas/channel'
 import {
   PrefBlockedIcon,
@@ -25,7 +26,8 @@ const prefs: Array<{
 ]
 
 export function SubscriptionsPage(): JSX.Element {
-  const { auth, signIn } = useAppStore()
+  const navigate = useNavigate()
+  const { auth, signIn, openChannel } = useAppStore()
   const [channels, setChannels] = useState<Channel[]>([])
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -137,7 +139,16 @@ export function SubscriptionsPage(): JSX.Element {
             <div className="channel-list">
               {filteredChannels.map((channel) => (
                 <div key={channel.id} className="channel-row">
-                  <div className="channel-main">
+                  <button
+                    type="button"
+                    className="channel-open"
+                    title={`Open channel: ${channel.title}`}
+                    aria-label={`Open channel: ${channel.title}`}
+                    onClick={() => {
+                      openChannel({ id: channel.id, title: channel.title })
+                      navigate(`/channel/${channel.id}`)
+                    }}
+                  >
                     <div className="channel-avatar" aria-hidden="true">
                       {channel.thumbnailUrl ? (
                         <img src={channel.thumbnailUrl} alt="" loading="lazy" />
@@ -149,7 +160,7 @@ export function SubscriptionsPage(): JSX.Element {
                       <h3>{channel.title}</h3>
                       <p>{channel.description || 'No description'}</p>
                     </div>
-                  </div>
+                  </button>
                   <div className="prefs">
                     {prefs.map(({ id, label, Icon }) => (
                       <button

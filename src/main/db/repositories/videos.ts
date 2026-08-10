@@ -97,15 +97,22 @@ export function queryFeedVideos(opts: {
   excludeVideoIds?: string[]
 }): { items: Video[]; nextCursor: string | null } {
   const db = getDb()
-  const where: string[] = [
-    'v.hidden = 0',
-    'c.subscribed = 1',
-    'c.blocked = 0',
-    'c.muted = 0',
-    'c.hidden = 0'
-  ]
+  const channelOnly = Boolean(opts.filters.channelId)
+  // Single-channel view: show that channel's library videos even if not currently subscribed.
+  const where: string[] = channelOnly
+    ? ['v.hidden = 0', 'v.channel_id = @channelId']
+    : [
+        'v.hidden = 0',
+        'c.subscribed = 1',
+        'c.blocked = 0',
+        'c.muted = 0',
+        'c.hidden = 0'
+      ]
   const params: Record<string, string | number> = {
     limit: opts.limit
+  }
+  if (channelOnly && opts.filters.channelId) {
+    params.channelId = opts.filters.channelId
   }
 
   if (opts.filters.hideShorts) {
@@ -117,10 +124,6 @@ export function queryFeedVideos(opts: {
   if (opts.filters.minDurationSeconds != null) {
     where.push('(v.duration_seconds IS NULL OR v.duration_seconds >= @minDuration)')
     params.minDuration = opts.filters.minDurationSeconds
-  }
-  if (opts.filters.channelId) {
-    where.push('v.channel_id = @channelId')
-    params.channelId = opts.filters.channelId
   }
   const excludeIds = [...new Set((opts.excludeVideoIds ?? []).filter(Boolean))]
   if (excludeIds.length > 0) {
@@ -143,7 +146,7 @@ export function queryFeedVideos(opts: {
       CASE WHEN wh.completed = 1 THEN 1 ELSE 0 END AS watched,
       wh.watch_progress AS watch_progress
     FROM videos v
-    INNER JOIN channels c ON c.id = v.channel_id
+    LEFT JOIN channels c ON c.id = v.channel_id
     LEFT JOIN watch_history wh ON wh.video_id = v.id
     WHERE ${where.join(' AND ')}
     ORDER BY v.published_at DESC, v.id DESC

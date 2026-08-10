@@ -15,9 +15,13 @@ export async function queryFeed(input: FeedQueryInput): Promise<FeedPage> {
     channelId: input.filters?.channelId ?? null
   })
 
+  // Discovery ≠ Sorted: never return now-playing / up-next on Home or Channel.
   const excludeVideoIds = [
-    ...(settings.nowPlaying ? [settings.nowPlaying.id] : []),
-    ...settings.playQueue.map((item) => item.id)
+    ...new Set([
+      ...(settings.nowPlaying ? [settings.nowPlaying.id] : []),
+      ...settings.playQueue.map((item) => item.id),
+      ...(input.excludeVideoIds ?? [])
+    ])
   ]
 
   const { items, nextCursor } = videoRepo.queryFeedVideos({
