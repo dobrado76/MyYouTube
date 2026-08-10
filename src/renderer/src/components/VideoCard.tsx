@@ -47,11 +47,16 @@ export function VideoCard({ video, onHide, onMarkWatched }: Props): JSX.Element 
       </button>
       <div className="video-meta">
         <h3>
-          <button type="button" className="linkish" onClick={handleWatch}>
+          <button
+            type="button"
+            className="linkish video-title"
+            onClick={handleWatch}
+            title={video.title}
+          >
             {video.title}
           </button>
         </h3>
-        <p>
+        <p className="video-subline">
           {video.channelTitle ?? video.channelId}
           {video.publishedAt ? ` · ${formatAge(video.publishedAt)}` : ''}
           {video.watched ? ' · Watched' : ''}
@@ -68,17 +73,18 @@ export function VideoCard({ video, onHide, onMarkWatched }: Props): JSX.Element 
           >
             <PlayIcon />
           </button>
-          {!inQueue ? (
-            <button
-              type="button"
-              className="icon-btn"
-              onClick={handleQueue}
-              title="Watch later"
-              aria-label="Watch later"
-            >
-              <QueueIcon />
-            </button>
-          ) : null}
+          <button
+            type="button"
+            className={`icon-btn${inQueue ? ' is-placeholder' : ''}`}
+            onClick={handleQueue}
+            disabled={inQueue}
+            title={inQueue ? 'Already in queue' : 'Watch later'}
+            aria-label={inQueue ? 'Already in queue' : 'Watch later'}
+            aria-hidden={inQueue}
+            tabIndex={inQueue ? -1 : undefined}
+          >
+            <QueueIcon />
+          </button>
           {onMarkWatched ? (
             <button
               type="button"

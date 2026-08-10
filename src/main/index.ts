@@ -1,6 +1,6 @@
 import { app, BrowserWindow, ipcMain, shell } from 'electron'
 import { join } from 'path'
-import { existsSync, mkdirSync, readFileSync } from 'fs'
+import { existsSync, readFileSync } from 'fs'
 import { initDatabase, closeDatabase } from './db'
 import { initCredentialsStore } from './auth/credentials'
 import { initTokenStore } from './auth/tokens'
@@ -16,6 +16,7 @@ import {
 import { getSettings } from './db/repositories/settings'
 import { RendererServer } from './rendererServer'
 import { IpcChannels } from '../shared/ipc/channels'
+import { resolveUserDataPath } from './userDataPath'
 
 function loadEnvFile(): void {
   const candidates = [join(process.cwd(), '.env.local'), join(process.cwd(), '.env')]
@@ -36,16 +37,8 @@ function loadEnvFile(): void {
   }
 }
 
-function resolveUserDataPath(): string {
-  const override = process.env.MYYOUTUBE_USER_DATA || process.env.MYTUBE_USER_DATA
-  if (override) {
-    if (!existsSync(override)) mkdirSync(override, { recursive: true })
-    return override
-  }
-  return app.getPath('userData')
-}
-
-// GPU policy must be applied before ready; boot file lives under userData.
+// GPU policy must be applied before ready; boot file lives under shared userData
+// (same folder for npm run dev and the installed build — see userDataPath.ts).
 loadEnvFile()
 const bootUserDataPath = resolveUserDataPath()
 app.setPath('userData', bootUserDataPath)

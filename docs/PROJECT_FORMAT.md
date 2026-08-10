@@ -18,29 +18,31 @@ No personal YouTube data belongs in the repo.
 
 ## Electron `userData` (runtime)
 
-Typical Windows path:
+**Dev (`npm run dev`) and the installed app share one library.** Canonical folder is the package id:
 
 ```text
-%APPDATA%\MyYouTube\
+%APPDATA%\myyoutube\
 ```
+
+(On Windows this is usually the same directory as `%APPDATA%\MyYouTube` because the filesystem is case-insensitive.)
+
+If an older install-only profile under `MyYouTube` has `myyoutube.sqlite` and the package-name folder does not, that path is used until a package-name library exists — so nothing is stranded. When both exist on a case-sensitive OS, **the `myyoutube` (dev) profile wins**.
 
 Suggested layout:
 
 ```text
-MyYouTube/
+myyoutube/
   myyoutube.sqlite
   myyoutube.sqlite-wal   # if WAL mode
   window-state.json      # size, position, maximized
   tokens/                # OAuth tokens (not committed)
+  hardware-acceleration.json
   cache/                 # optional thumbnail disk cache
-  logs/                  # optional
-  settings.json          # if not entirely in SQLite
 ```
 
-Override for isolation during development (optional later):
+Override for an isolated profile:
 
-- `MYYOUTUBE_USER_DATA` — absolute path (`MYTUBE_USER_DATA` still accepted)  
-- or a documented flag for repo-local `.dev-user-data/`  
+- `MYYOUTUBE_USER_DATA` — absolute path (`MYTUBE_USER_DATA` still accepted)
 
 ## Credentials
 

@@ -7,7 +7,7 @@ Locked choices for **this** repository. When [PRODUCT_SPEC.md](PRODUCT_SPEC.md) 
 | D1 | **Electron + electron-vite** desktop app (not Tauri, not pure local web for v1) | Match intended desktop architecture; one locked stack for agents |
 | D2 | Renderer **sandbox + contextIsolation**; **no Node** in renderer | Security; secrets and DB stay in main |
 | D3 | Typed preload IPC + **Zod**; Result `{ ok, value } \| { ok: false, error }` | Safe boundaries; consistent errors |
-| D4 | All personal state under Electron **`userData`** (SQLite, tokens, caches) | Portable, reinstall-friendly, never pollute repo |
+| D4 | All personal state under Electron **`userData`** (SQLite, tokens, caches); **`npm run dev` and the installed app share one folder** (`%APPDATA%\myyoutube`, preferring that profile when both exist) | Portable; one library/settings/queue across unpackaged + install |
 | D5 | **YouTube Data API v3** + Google OAuth + **IFrame Player API** only | ToS / supported surfaces |
 | D6 | **No** stream URL extraction, download, ad/auth bypass, or website scraping for API-covered data | Policy + maintainability |
 | D7 | Subscription feed **never** silently injects discovery/recommended non-subscription items | Core product honesty |
