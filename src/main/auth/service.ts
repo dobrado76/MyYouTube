@@ -7,7 +7,7 @@ import {
   upsertCredentials,
   type CredentialsStatus
 } from './credentials'
-import { getOAuthSetupInfo, refreshAccessToken, runGoogleOAuth } from './oauth'
+import { fetchAccountProfile, getOAuthSetupInfo, refreshAccessToken, runGoogleOAuth } from './oauth'
 import { clearTokens, readTokens, writeTokens } from './tokens'
 
 export type { CredentialsStatus }
@@ -22,6 +22,7 @@ export function getAuthStatus(): AuthStatus {
     return {
       signedIn: Boolean(tokens?.accountLabel) || tokens?.accessToken === 'mock-access-token',
       accountLabel: tokens?.accountLabel ?? null,
+      accountPictureUrl: tokens?.accountPictureUrl ?? null,
       provider: 'mock',
       mockMode: true
     }
@@ -30,9 +31,38 @@ export function getAuthStatus(): AuthStatus {
   return {
     signedIn: Boolean(tokens?.accessToken) && creds.configured,
     accountLabel: tokens?.accountLabel ?? null,
+    accountPictureUrl: tokens?.accountPictureUrl ?? null,
     provider: 'live',
     mockMode: false
   }
+}
+
+/** Fill missing profile photo for sessions created before we stored `picture`. */
+export async function ensureAccountProfile(): Promise<AuthStatus> {
+  const tokens = readTokens()
+  if (!tokens?.accessToken || tokens.accessToken === 'mock-access-token') {
+    return getAuthStatus()
+  }
+  if (tokens.accountPictureUrl && tokens.accountLabel) {
+    return getAuthStatus()
+  }
+
+  try {
+    const accessToken = (await getAccessToken()) ?? tokens.accessToken
+    if (!accessToken || accessToken === 'mock-access-token') {
+      return getAuthStatus()
+    }
+    const profile = await fetchAccountProfile(accessToken)
+    const latest = readTokens() ?? tokens
+    writeTokens({
+      ...latest,
+      accountLabel: latest.accountLabel ?? profile.accountLabel,
+      accountPictureUrl: profile.accountPictureUrl ?? latest.accountPictureUrl
+    })
+  } catch {
+    // Keep existing tokens if userinfo fails.
+  }
+  return getAuthStatus()
 }
 
 export function credentialsStatus(): CredentialsStatus {
@@ -90,7 +120,8 @@ export async function signIn(): Promise<AuthStatus> {
   writeTokens({
     ...tokens,
     refreshToken: tokens.refreshToken ?? existing?.refreshToken,
-    accountLabel: tokens.accountLabel ?? existing?.accountLabel
+    accountLabel: tokens.accountLabel ?? existing?.accountLabel,
+    accountPictureUrl: tokens.accountPictureUrl ?? existing?.accountPictureUrl
   })
   patchSettingsSync({ youtubeProvider: 'live' })
   return getAuthStatus()
@@ -118,7 +149,8 @@ export async function getAccessToken(): Promise<string | null> {
     writeTokens({
       ...tokens,
       ...refreshed,
-      accountLabel: tokens.accountLabel
+      accountLabel: tokens.accountLabel,
+      accountPictureUrl: tokens.accountPictureUrl
     })
     return refreshed.accessToken
   } catch {

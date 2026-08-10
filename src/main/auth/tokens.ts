@@ -6,6 +6,8 @@ export type TokenBundle = {
   refreshToken?: string
   expiryDate?: number
   accountLabel?: string
+  /** Google OpenID profile picture URL. */
+  accountPictureUrl?: string
 }
 
 let tokensDir: string | null = null

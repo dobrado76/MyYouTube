@@ -98,6 +98,7 @@ export function Layout(): JSX.Element {
   const accountTooltip = auth?.signedIn
     ? (auth.accountLabel ?? 'Signed in')
     : 'Not signed in — open Account'
+  const accountInitial = (auth?.accountLabel?.trim().charAt(0) || '?').toUpperCase()
 
   return (
     <div className={`app-shell${cinemaPlay ? ' cinema-shell' : ''}`}>
@@ -229,10 +230,18 @@ export function Layout(): JSX.Element {
               title={accountTooltip}
               aria-label={accountTooltip}
               className={({ isActive }) =>
-                `tab-link${isActive || showAccount ? ' active' : ''}${auth?.signedIn ? ' is-signed-in' : ''}`
+                `tab-link tab-link-account${isActive || showAccount ? ' active' : ''}${auth?.signedIn ? ' is-signed-in' : ''}`
               }
             >
-              <AccountIcon />
+              {auth?.signedIn && auth.accountPictureUrl ? (
+                <img className="account-avatar" src={auth.accountPictureUrl} alt="" />
+              ) : auth?.signedIn ? (
+                <span className="account-avatar-fallback" aria-hidden="true">
+                  {accountInitial}
+                </span>
+              ) : (
+                <AccountIcon />
+              )}
             </NavLink>
             <NavLink
               to="/settings"

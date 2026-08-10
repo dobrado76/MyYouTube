@@ -53,7 +53,7 @@ function wrap(handler: Handler) {
 export function registerIpcHandlers(): void {
   ipcMain.handle(
     IpcChannels.authGetStatus,
-    wrap(() => auth.getAuthStatus())
+    wrap(() => auth.ensureAccountProfile())
   )
   ipcMain.handle(
     IpcChannels.authSignIn,

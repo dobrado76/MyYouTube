@@ -389,7 +389,10 @@ export function SettingsPage(): JSX.Element {
             <div className="settings-card">
               <div className="settings-card-head">
                 <h2>Sign-in</h2>
-                <span className="settings-note">
+                <span className="settings-note settings-account-label">
+                  {auth?.signedIn && auth.accountPictureUrl ? (
+                    <img className="account-avatar" src={auth.accountPictureUrl} alt="" />
+                  ) : null}
                   {auth?.signedIn
                     ? auth.accountLabel ?? 'Signed in'
                     : credStatus?.configured

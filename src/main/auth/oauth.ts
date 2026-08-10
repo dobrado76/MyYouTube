@@ -209,13 +209,14 @@ export async function runGoogleOAuth(credentials: GoogleCredentials): Promise<To
       id_token?: string
     }
 
-    const accountLabel = await fetchAccountLabel(json.access_token, json.id_token)
+    const profile = await fetchAccountProfile(json.access_token, json.id_token)
 
     return {
       accessToken: json.access_token,
       refreshToken: json.refresh_token,
       expiryDate: Date.now() + (json.expires_in ?? 3600) * 1000,
-      accountLabel
+      accountLabel: profile.accountLabel,
+      accountPictureUrl: profile.accountPictureUrl
     }
   } catch (error) {
     loopback.close()
@@ -259,14 +260,26 @@ export async function refreshAccessToken(
   }
 }
 
-async function fetchAccountLabel(accessToken: string, idToken?: string): Promise<string> {
+export type AccountProfile = {
+  accountLabel: string
+  accountPictureUrl?: string
+}
+
+export async function fetchAccountProfile(
+  accessToken: string,
+  idToken?: string
+): Promise<AccountProfile> {
+  let accountLabel = 'Google account'
+  let accountPictureUrl: string | undefined
+
   if (idToken) {
     try {
       const payload = JSON.parse(
         Buffer.from(idToken.split('.')[1] ?? '', 'base64url').toString('utf8')
-      ) as { email?: string; name?: string }
-      if (payload.email) return payload.email
-      if (payload.name) return payload.name
+      ) as { email?: string; name?: string; picture?: string }
+      if (payload.email) accountLabel = payload.email
+      else if (payload.name) accountLabel = payload.name
+      if (payload.picture) accountPictureUrl = payload.picture
     } catch {
       // ignore
     }
@@ -277,12 +290,17 @@ async function fetchAccountLabel(accessToken: string, idToken?: string): Promise
       headers: { Authorization: `Bearer ${accessToken}` }
     })
     if (response.ok) {
-      const json = (await response.json()) as { email?: string; name?: string }
-      return json.email || json.name || 'Google account'
+      const json = (await response.json()) as {
+        email?: string
+        name?: string
+        picture?: string
+      }
+      accountLabel = json.email || json.name || accountLabel
+      if (json.picture) accountPictureUrl = json.picture
     }
   } catch {
     // ignore
   }
 
-  return 'Google account'
+  return { accountLabel, accountPictureUrl }
 }

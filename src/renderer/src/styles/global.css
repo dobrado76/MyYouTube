@@ -173,6 +173,52 @@ button:disabled {
   color: var(--ink);
 }
 
+.tab-link-account {
+  overflow: hidden;
+  padding: 0;
+}
+
+.tab-link-account .account-avatar,
+.tab-link-account .account-avatar-fallback {
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  display: block;
+  flex: 0 0 auto;
+  border: none;
+}
+
+.tab-link-account .account-avatar {
+  object-fit: cover;
+  background: var(--border);
+}
+
+.tab-link-account .account-avatar-fallback {
+  display: grid;
+  place-items: center;
+  font-size: 0.95rem;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--ink);
+  background: color-mix(in srgb, var(--accent) 18%, var(--bg-elevated));
+}
+
+.settings-account-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.settings-account-label .account-avatar {
+  width: 1.35rem;
+  height: 1.35rem;
+  border-radius: 50%;
+  object-fit: cover;
+  display: block;
+  flex: 0 0 auto;
+  background: var(--border);
+}
+
 .tab-bar {
   display: flex;
   align-items: center;
