@@ -8,7 +8,9 @@ import {
 } from '@shared/schemas/settings'
 import type { CredentialsStatus } from '@shared/schemas/credentials'
 import type { UpdateCheckResult } from '@shared/schemas/updates'
+import { YOUTUBE_DATA_API_LIBRARY_URL } from '@shared/constants/googleCloud'
 import type { HardwareAccelerationStatus } from '@shared/ipc/api'
+import { GoogleSetupHelp } from '../components/GoogleSetupHelp'
 import { callApi } from '../lib/api'
 import { useAppStore } from '../store/appStore'
 
@@ -102,6 +104,7 @@ export function SettingsPage(): JSX.Element {
   const [hwStatus, setHwStatus] = useState<HardwareAccelerationStatus | null>(null)
   const [hwBusy, setHwBusy] = useState(false)
   const [hwError, setHwError] = useState<string | null>(null)
+  const [showGoogleHelp, setShowGoogleHelp] = useState(false)
 
   useEffect(() => {
     setFolderDraft(settings.updatesFolder)
@@ -298,7 +301,10 @@ export function SettingsPage(): JSX.Element {
             key={item.id}
             type="button"
             className={`settings-nav-link${section === item.id ? ' active' : ''}`}
-            onClick={() => setSection(item.id)}
+            onClick={() => {
+              setSection(item.id)
+              if (item.id !== 'account') setShowGoogleHelp(false)
+            }}
           >
             {item.label}
           </button>
@@ -311,7 +317,16 @@ export function SettingsPage(): JSX.Element {
           <p>{copy.blurb}</p>
         </header>
 
-        {section === 'account' ? (
+        {section === 'account' && showGoogleHelp ? (
+          <GoogleSetupHelp
+            redirectUri={redirectUri}
+            copiedRedirect={copiedRedirect}
+            onCopyRedirect={() => void copyRedirectUri()}
+            onBack={() => setShowGoogleHelp(false)}
+          />
+        ) : null}
+
+        {section === 'account' && !showGoogleHelp ? (
           <div className="settings-stack">
             <div className="settings-card">
               <div className="settings-card-head">
@@ -347,11 +362,45 @@ export function SettingsPage(): JSX.Element {
 
             <div className="settings-card">
               <div className="settings-card-head">
-                <h2>OAuth credentials</h2>
+                <h2>YouTube Data API v3</h2>
+                <button type="button" onClick={() => setShowGoogleHelp(true)}>
+                  Help
+                </button>
               </div>
               <p className="settings-note">
-                Enable <strong>YouTube Data API v3</strong> in the same Google Cloud project. Prefer a{' '}
-                <strong>Desktop</strong> OAuth client; Web clients need the redirect URI below.
+                Enable this API in the same Google Cloud project that owns your OAuth client, then
+                create a <strong>Desktop</strong> client (recommended).
+              </p>
+              <label className="settings-field">
+                <span>API library URL</span>
+                <div className="path-controls">
+                  <input
+                    id="youtube-api-library-url"
+                    type="text"
+                    value={YOUTUBE_DATA_API_LIBRARY_URL}
+                    readOnly
+                  />
+                  <button
+                    type="button"
+                    className="primary"
+                    onClick={() => window.open(YOUTUBE_DATA_API_LIBRARY_URL, '_blank')}
+                  >
+                    Open
+                  </button>
+                </div>
+              </label>
+            </div>
+
+            <div className="settings-card">
+              <div className="settings-card-head">
+                <h2>OAuth credentials</h2>
+                <button type="button" onClick={() => setShowGoogleHelp(true)}>
+                  Help
+                </button>
+              </div>
+              <p className="settings-note">
+                Prefer a <strong>Desktop</strong> OAuth client. Web clients must allow the redirect
+                URI below.
               </p>
 
               <label className="settings-field">

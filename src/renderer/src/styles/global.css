@@ -1040,6 +1040,44 @@ button.linkish:hover {
   padding: 0.45rem 0.65rem;
 }
 
+a.button-link {
+  display: inline-flex;
+  text-decoration: none;
+  flex: 0 0 auto;
+}
+
+a.button-link button {
+  pointer-events: none;
+}
+
+.help-steps {
+  margin: 0;
+  padding-left: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  color: var(--ink);
+  line-height: 1.45;
+}
+
+.help-steps li {
+  padding-left: 0.15rem;
+}
+
+.help-link-row {
+  margin-top: 0.45rem;
+}
+
+.google-setup-help .settings-card h2 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.google-setup-help code {
+  font-size: 0.9em;
+  word-break: break-all;
+}
+
 .color-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
