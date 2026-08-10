@@ -169,13 +169,28 @@ function mapHistoryVideo(row: VideoRow): HistoryVideo {
   }
 }
 
+function appendHistorySearchClause(
+  where: string[],
+  params: Record<string, string | number>,
+  query: string | undefined
+): void {
+  const needle = query?.trim().toLowerCase() ?? ''
+  if (!needle) return
+  where.push(
+    `(INSTR(LOWER(v.title), @histQ) > 0 OR INSTR(LOWER(COALESCE(v.description, '')), @histQ) > 0 OR INSTR(LOWER(COALESCE(c.title, '')), @histQ) > 0)`
+  )
+  params.histQ = needle
+}
+
 export function listWatchedVideos(opts: {
   cursor: string | null
   limit: number
+  query?: string
 }): HistoryListPage {
   const db = getDb()
   const where = ['wh.completed = 1']
   const params: Record<string, string | number> = { limit: opts.limit }
+  appendHistorySearchClause(where, params, opts.query)
   if (opts.cursor) {
     where.push(
       `(COALESCE(wh.last_opened_at, wh.first_opened_at) < @cursor OR (COALESCE(wh.last_opened_at, wh.first_opened_at) = @cursor AND v.id < @cursorId))`
@@ -212,10 +227,12 @@ export function listWatchedVideos(opts: {
 export function listHiddenVideos(opts: {
   cursor: string | null
   limit: number
+  query?: string
 }): HistoryListPage {
   const db = getDb()
   const where = ['v.hidden = 1']
   const params: Record<string, string | number> = { limit: opts.limit }
+  appendHistorySearchClause(where, params, opts.query)
   if (opts.cursor) {
     where.push(
       `(COALESCE(v.hidden_at, v.fetched_at, '') < @cursor OR (COALESCE(v.hidden_at, v.fetched_at, '') = @cursor AND v.id < @cursorId))`

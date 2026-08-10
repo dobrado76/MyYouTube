@@ -248,7 +248,8 @@ export function registerIpcHandlers(): void {
       const input = HistoryListInputSchema.parse(raw ?? {})
       return videoRepo.listWatchedVideos({
         cursor: input.cursor ?? null,
-        limit: input.limit
+        limit: input.limit,
+        query: input.query
       })
     })
   )
@@ -258,7 +259,8 @@ export function registerIpcHandlers(): void {
       const input = HistoryListInputSchema.parse(raw ?? {})
       return videoRepo.listHiddenVideos({
         cursor: input.cursor ?? null,
-        limit: input.limit
+        limit: input.limit,
+        query: input.query
       })
     })
   )

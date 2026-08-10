@@ -6,6 +6,7 @@ import {
   PlayIcon,
   PrefBlockedIcon,
   QueueIcon,
+  SearchIcon,
   UndoIcon,
   VisibilityIcon
 } from '../components/icons'
@@ -30,14 +31,24 @@ const SECTION_COPY: Record<SectionId, { title: string; blurb: string }> = {
   }
 }
 
+const SEARCH_DEBOUNCE_MS = 280
+
 export function HistoryPage(): JSX.Element {
   const navigate = useNavigate()
   const { watchNow, enqueue } = useAppStore()
   const [section, setSection] = useState<SectionId>('watched')
+  const [draft, setDraft] = useState('')
+  const [query, setQuery] = useState('')
   const [items, setItems] = useState<HistoryVideo[]>([])
   const [cursor, setCursor] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
+  // Debounce filter text; reset when switching Watched / Hidden.
+  useEffect(() => {
+    const handle = window.setTimeout(() => setQuery(draft.trim()), SEARCH_DEBOUNCE_MS)
+    return () => window.clearTimeout(handle)
+  }, [draft])
 
   const loadVideos = useCallback(
     async (opts?: { reset?: boolean; cursor?: string | null }) => {
@@ -47,11 +58,13 @@ export function HistoryPage(): JSX.Element {
           section === 'watched'
             ? window.myyoutube.history.listWatched({
                 cursor: opts?.cursor ?? null,
-                limit: 40
+                limit: 40,
+                query
               })
             : window.myyoutube.history.listHidden({
                 cursor: opts?.cursor ?? null,
-                limit: 40
+                limit: 40,
+                query
               })
         )
         setItems((prev) => (opts?.reset ? page.items : [...prev, ...page.items]))
@@ -62,7 +75,7 @@ export function HistoryPage(): JSX.Element {
         setLoading(false)
       }
     },
-    [section]
+    [section, query]
   )
 
   useEffect(() => {
@@ -71,6 +84,12 @@ export function HistoryPage(): JSX.Element {
     setCursor(null)
     void loadVideos({ reset: true })
   }, [loadVideos])
+
+  function switchSection(next: SectionId): void {
+    setSection(next)
+    setDraft('')
+    setQuery('')
+  }
 
   async function restoreWatched(videoId: string): Promise<void> {
     await callApi(() => window.myyoutube.history.unmarkWatched(videoId))
@@ -97,6 +116,8 @@ export function HistoryPage(): JSX.Element {
   }
 
   const copy = SECTION_COPY[section]
+  const filterPlaceholder =
+    section === 'watched' ? 'Filter watched…' : 'Filter hidden…'
 
   return (
     <div className="settings-page history-page">
@@ -107,7 +128,7 @@ export function HistoryPage(): JSX.Element {
             key={item.id}
             type="button"
             className={`settings-nav-link${section === item.id ? ' active' : ''}`}
-            onClick={() => setSection(item.id)}
+            onClick={() => switchSection(item.id)}
           >
             {item.label}
           </button>
@@ -120,11 +141,43 @@ export function HistoryPage(): JSX.Element {
           <p>{copy.blurb}</p>
         </header>
 
+        <div className="history-filter-bar">
+          <SearchIcon />
+          <input
+            type="search"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            placeholder={filterPlaceholder}
+            aria-label={filterPlaceholder}
+            maxLength={200}
+          />
+          {draft ? (
+            <button
+              type="button"
+              className="ghost"
+              onClick={() => {
+                setDraft('')
+                setQuery('')
+              }}
+              title="Clear filter"
+              aria-label="Clear filter"
+            >
+              Clear
+            </button>
+          ) : null}
+        </div>
+
         {error ? <p className="error">{error}</p> : null}
 
         <div className="settings-stack">
           {loading && items.length === 0 ? <p className="muted">Loading…</p> : null}
-          {!loading && items.length === 0 ? <p className="muted">Nothing here yet.</p> : null}
+          {!loading && items.length === 0 ? (
+            <p className="muted">
+              {query
+                ? `No matches for “${query}” in ${section === 'watched' ? 'Watched' : 'Hidden'}.`
+                : 'Nothing here yet.'}
+            </p>
+          ) : null}
 
           <ul className="history-list">
             {items.map((video) => (
