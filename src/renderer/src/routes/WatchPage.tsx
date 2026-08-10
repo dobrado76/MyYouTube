@@ -237,16 +237,15 @@ export function WatchPage(): JSX.Element {
       onActualQuality={setActualQuality}
       onEnded={() => void handleEnded()}
       onProgress={(progress, completed) => {
-        updateNowPlayingProgress(progress, completed)
-        setVideo((prev) =>
-          prev
-            ? {
-                ...prev,
-                watchProgress: progress,
-                watched: completed ? true : progress <= RESUME_RESET ? false : prev.watched
-              }
-            : prev
-        )
+        updateNowPlayingProgress(video.id, progress, completed)
+        setVideo((prev) => {
+          if (!prev || prev.id !== video.id) return prev
+          return {
+            ...prev,
+            watchProgress: progress,
+            watched: completed ? true : progress <= RESUME_RESET ? false : prev.watched
+          }
+        })
       }}
     />
   )

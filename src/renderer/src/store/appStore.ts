@@ -41,7 +41,8 @@ type AppState = {
   flushPlayback: () => void
   /** Awaitable persist of nowPlaying + queue (and in-flight progress). */
   persistPlaybackNow: () => Promise<void>
-  updateNowPlayingProgress: (progress: number, completed?: boolean) => void
+  /** Update resume for the active item only when `videoId` still matches nowPlaying. */
+  updateNowPlayingProgress: (videoId: string, progress: number, completed?: boolean) => void
   /**
    * Skip to next up-next item. Marks current watched when resumeProgress > 0.6.
    */
@@ -275,9 +276,10 @@ export const useAppStore = create<AppState>((set, get) => ({
     await writePlaybackSettings(get, set)
   },
 
-  updateNowPlayingProgress: (progress, completed = false) => {
+  updateNowPlayingProgress: (videoId, progress, completed = false) => {
     const np = get().nowPlaying
-    if (!np) return
+    // Drop stale flushes from a player that was just replaced by Next/Previous/Watch.
+    if (!np || np.id !== videoId) return
     const nextProgress = completed ? 1 : progress
     if (
       np.resumeProgress != null &&

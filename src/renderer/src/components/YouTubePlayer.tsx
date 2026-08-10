@@ -116,10 +116,11 @@ export function YouTubePlayer({
         await callApi(() =>
           window.myyoutube.history.upsertProgress(effectProgressKey, progress, done)
         )
-        // Only update live session UI when this instance is still the active video.
-        if (progressKeyRef.current === effectProgressKey) {
-          onProgressRef.current?.(progress, done)
-        }
+        // Never push into the live session after this instance was cancelled/replaced —
+        // Next/Previous already advanced nowPlaying; a late callback would seek the next video.
+        if (cancelled) return
+        if (progressKeyRef.current !== effectProgressKey) return
+        onProgressRef.current?.(progress, done)
       } catch {
         // Best-effort persistence.
       }
@@ -243,13 +244,15 @@ export function YouTubePlayer({
 
     return () => {
       cancelled = true
-      // Prevent destroy/teardown from advancing the queue via onEnded.
+      // Prevent destroy/teardown from advancing the queue or poisoning the next item's resume.
       onEndedRef.current = undefined
+      onProgressRef.current = undefined
       unregisterFlusher()
       if (saveTimer) {
         clearInterval(saveTimer)
         saveTimer = null
       }
+      // History-only flush (onProgress is cleared / cancelled above).
       void flushProgress()
       try {
         created?.destroy()
