@@ -1,0 +1,40 @@
+---
+description: MyYouTube agent rules — standalone personal YouTube client
+alwaysApply: true
+---
+
+# MyYouTube agent rules
+
+## Scope
+
+- This repo is **MyYouTube** — a standalone personal YouTube client (Electron + React).
+- **Do not** reference, import, copy from, or depend on any other project (including any file manager or training apps).
+- Canonical plan: `PLAN.md`. Specs: `docs/`. Implement against those files only.
+
+## Architecture
+
+- Electron **main** owns: OAuth token vault, YouTube Data API calls, SQLite, sync, feed aggregation, recommendation scoring, settings persistence.
+- Renderer is React + Zustand; **no Node integration**.
+- Typed preload IPC + Zod; Result envelope `{ ok, value } | { ok: false, error }`.
+- App state only under Electron `userData` — never write personal DB/tokens into the repo or arbitrary folders.
+- Playback only via **official YouTube IFrame Player** (or supported embed). No stream-URL extraction.
+
+## Product locks
+
+- Subscription feed must never silently include discovery / injected recommendations.
+- No autoplay or infinite scroll by default; prefer pagination / Load more.
+- Explicit interests dominate behavioural inference.
+- Recommendation scores must be explainable (store components).
+- MVP ships **without** AI/embeddings; keep classifiers behind an interface later.
+
+## YouTube / security
+
+- Use YouTube Data API v3 + Google OAuth only; no scraping youtube.com for API-covered data.
+- Never commit `.env`, client secrets, tokens, or `*.sqlite` user databases.
+- Do not log access/refresh tokens.
+- Verify current Google/YouTube API docs and ToS before implementing API calls.
+
+## Specs vs code
+
+Until scaffold exists, prefer updating `docs/` + `PLAN.md` when product decisions change; then implement.
+Keep [docs/DECISIONS.md](docs/DECISIONS.md) in sync when locking behaviour.

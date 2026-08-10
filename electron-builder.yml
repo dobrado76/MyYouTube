@@ -1,0 +1,10 @@
+appId: com.myyoutube.app
+productName: MyYouTube
+directories:
+  output: release
+files:
+  - out/**/*
+  - package.json
+win:
+  target:
+    - nsis
