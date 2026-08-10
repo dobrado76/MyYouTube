@@ -1,4 +1,5 @@
 import { useEffect, useState, type JSX } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import {
   DEFAULT_APPEARANCE,
   type Appearance,
@@ -81,10 +82,14 @@ const SECTION_COPY: Record<SectionId, { title: string; blurb: string }> = {
 }
 
 export function SettingsPage(): JSX.Element {
+  const navigate = useNavigate()
+  const { pathname } = useLocation()
   const { settings, auth, patchSettings, signIn, signOut, refreshAuth } = useAppStore()
   const { appearance, theme } = settings
   const showCustomColors = theme === 'custom'
-  const [section, setSection] = useState<SectionId>('account')
+  const [section, setSection] = useState<SectionId>(() =>
+    pathname.startsWith('/account') ? 'account' : 'appearance'
+  )
   const [appVersion, setAppVersion] = useState('…')
   const [folderDraft, setFolderDraft] = useState(settings.updatesFolder)
   const [checking, setChecking] = useState(false)
@@ -109,6 +114,17 @@ export function SettingsPage(): JSX.Element {
   useEffect(() => {
     setFolderDraft(settings.updatesFolder)
   }, [settings.updatesFolder])
+
+  useEffect(() => {
+    if (pathname.startsWith('/account')) {
+      setSection('account')
+      return
+    }
+    if (pathname.startsWith('/settings')) {
+      setSection((current) => (current === 'account' ? 'appearance' : current))
+      setShowGoogleHelp(false)
+    }
+  }, [pathname])
 
   useEffect(() => {
     void callApi(() => window.myyoutube.app.hardwareAccelerationStatus())
@@ -302,8 +318,13 @@ export function SettingsPage(): JSX.Element {
             type="button"
             className={`settings-nav-link${section === item.id ? ' active' : ''}`}
             onClick={() => {
+              if (item.id === 'account') {
+                navigate('/account')
+                return
+              }
+              if (!pathname.startsWith('/settings')) navigate('/settings')
               setSection(item.id)
-              if (item.id !== 'account') setShowGoogleHelp(false)
+              setShowGoogleHelp(false)
             }}
           >
             {item.label}

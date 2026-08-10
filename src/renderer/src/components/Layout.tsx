@@ -7,7 +7,15 @@ import { SettingsPage } from '../routes/SettingsPage'
 import { SubscriptionsPage } from '../routes/SubscriptionsPage'
 import { WatchPage } from '../routes/WatchPage'
 import { useAppStore } from '../store/appStore'
-import { SearchIcon } from './icons'
+import {
+  AccountIcon,
+  HomeIcon,
+  PlayIcon,
+  QueueIcon,
+  SearchIcon,
+  SettingsIcon,
+  SubscriptionsIcon
+} from './icons'
 
 export function Layout(): JSX.Element {
   const navigate = useNavigate()
@@ -20,7 +28,9 @@ export function Layout(): JSX.Element {
   const showSubscriptions = pathname.startsWith('/subscriptions')
   const showSearch = pathname.startsWith('/search')
   const showQueue = pathname.startsWith('/queue')
+  const showAccount = pathname.startsWith('/account')
   const showSettings = pathname.startsWith('/settings')
+  const showPrefs = showAccount || showSettings
   const showPlay = pathname === '/play' || pathname.startsWith('/watch/')
   const cinemaPlay = showPlay && settings.player.mode === 'cinema'
   const playPath = playVideoId ? `/watch/${playVideoId}` : '/play'
@@ -52,51 +62,67 @@ export function Layout(): JSX.Element {
   }
 
   const playPanelMode = showPlay ? 'is-active' : playVideoId ? 'is-mini' : 'is-hidden'
+  const accountTooltip = auth?.signedIn
+    ? (auth.accountLabel ?? 'Signed in')
+    : 'Not signed in — open Account'
 
   return (
     <div className={`app-shell${cinemaPlay ? ' cinema-shell' : ''}`}>
       <header className="chrome">
-        <div className="brand">
-          My<span>YouTube</span>
-        </div>
+        <div className="chrome-start">
+          <div className="brand">
+            My<span>YouTube</span>
+          </div>
 
-        <nav className="tab-bar" aria-label="Main">
-          <NavLink to="/" end className={({ isActive }) => `tab-link${isActive ? ' active' : ''}`}>
-            Home
-          </NavLink>
-          <NavLink
-            to="/subscriptions"
-            className={({ isActive }) => `tab-link${isActive ? ' active' : ''}`}
-          >
-            Subscriptions
-          </NavLink>
-          <NavLink
-            to="/search"
-            className={({ isActive }) => `tab-link${isActive || showSearch ? ' active' : ''}`}
-          >
-            Search
-          </NavLink>
-          <NavLink
-            to="/queue"
-            className={({ isActive }) => `tab-link${isActive || showQueue ? ' active' : ''}`}
-          >
-            Queue{queueCount > 0 ? ` (${queueCount})` : ''}
-          </NavLink>
-          <NavLink
-            to={playPath}
-            className={({ isActive }) =>
-              `tab-link${isActive || showPlay ? ' active' : ''}${playVideoId ? ' has-session' : ''}`
-            }
-          >
-            Play
-          </NavLink>
-          <NavLink
-            to="/settings"
-            className={({ isActive }) => `tab-link${isActive ? ' active' : ''}`}
-          >
-            Settings
-          </NavLink>
-        </nav>
+          <nav className="tab-bar" aria-label="Main">
+            <NavLink
+              to="/"
+              end
+              title="Home"
+              aria-label="Home"
+              className={({ isActive }) => `tab-link${isActive ? ' active' : ''}`}
+            >
+              <HomeIcon />
+            </NavLink>
+            <NavLink
+              to="/subscriptions"
+              title="Subscriptions"
+              aria-label="Subscriptions"
+              className={({ isActive }) => `tab-link${isActive ? ' active' : ''}`}
+            >
+              <SubscriptionsIcon />
+            </NavLink>
+            <NavLink
+              to="/search"
+              title="Search"
+              aria-label="Search"
+              className={({ isActive }) => `tab-link${isActive || showSearch ? ' active' : ''}`}
+            >
+              <SearchIcon />
+            </NavLink>
+            <NavLink
+              to="/queue"
+              title="Queue"
+              aria-label={queueCount > 0 ? `Queue (${queueCount})` : 'Queue'}
+              className={({ isActive }) =>
+                `tab-link tab-link-queue${isActive || showQueue ? ' active' : ''}`
+              }
+            >
+              <QueueIcon />
+              {queueCount > 0 ? <span className="tab-count">{queueCount}</span> : null}
+            </NavLink>
+            <NavLink
+              to={playPath}
+              title="Play"
+              aria-label="Play"
+              className={({ isActive }) =>
+                `tab-link${isActive || showPlay ? ' active' : ''}${playVideoId ? ' has-session' : ''}`
+              }
+            >
+              <PlayIcon />
+            </NavLink>
+          </nav>
+        </div>
 
         <div className="topbar-end">
           {!cinemaPlay && !showSearch ? (
@@ -138,8 +164,25 @@ export function Layout(): JSX.Element {
               </button>
             </form>
           ) : null}
-          <div className="topbar-actions">
-            <span>{auth?.signedIn ? auth.accountLabel ?? 'Signed in' : 'Not signed in'}</span>
+          <div className="topbar-actions" aria-label="Account and settings">
+            <NavLink
+              to="/account"
+              title={accountTooltip}
+              aria-label={accountTooltip}
+              className={({ isActive }) =>
+                `tab-link${isActive || showAccount ? ' active' : ''}${auth?.signedIn ? ' is-signed-in' : ''}`
+              }
+            >
+              <AccountIcon />
+            </NavLink>
+            <NavLink
+              to="/settings"
+              title="Settings"
+              aria-label="Settings"
+              className={({ isActive }) => `tab-link${isActive || showSettings ? ' active' : ''}`}
+            >
+              <SettingsIcon />
+            </NavLink>
           </div>
         </div>
       </header>
@@ -157,7 +200,7 @@ export function Layout(): JSX.Element {
         <div className="tab-panel" hidden={!showQueue}>
           <QueuePage />
         </div>
-        <div className="tab-panel" hidden={!showSettings}>
+        <div className="tab-panel" hidden={!showPrefs}>
           <SettingsPage />
         </div>
         <div
