@@ -10,7 +10,7 @@ export async function queryFeed(input: FeedQueryInput): Promise<FeedPage> {
   const settings = getSettings()
   const filters = FeedFiltersSchema.parse({
     hideShorts: input.filters?.hideShorts ?? settings.hideShorts,
-    unwatchedOnly: input.filters?.unwatchedOnly ?? false,
+    unwatchedOnly: input.filters?.unwatchedOnly ?? settings.unwatchedOnly,
     minDurationSeconds: input.filters?.minDurationSeconds ?? null,
     channelId: input.filters?.channelId ?? null
   })

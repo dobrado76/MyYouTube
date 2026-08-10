@@ -110,7 +110,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   settings: DEFAULT_SETTINGS,
   error: null,
   hideShorts: DEFAULT_SETTINGS.hideShorts,
-  unwatchedOnly: false,
+  unwatchedOnly: DEFAULT_SETTINGS.unwatchedOnly,
   playVideoId: null,
   nowPlaying: null,
   queue: [],
@@ -133,6 +133,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         settings,
         auth,
         hideShorts: settings.hideShorts,
+        unwatchedOnly: settings.unwatchedOnly,
         nowPlaying,
         queue: settings.playQueue,
         playHistory: settings.playHistory,
@@ -160,7 +161,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     // from a settings patch response (stale IPC can otherwise wipe up-next).
     set({
       settings: withLivePlayback(settings, get),
-      hideShorts: settings.hideShorts
+      hideShorts: settings.hideShorts,
+      unwatchedOnly: settings.unwatchedOnly
     })
   },
 
@@ -180,7 +182,10 @@ export const useAppStore = create<AppState>((set, get) => ({
     void get().patchSettings({ hideShorts: value })
   },
 
-  setUnwatchedOnly: (value) => set({ unwatchedOnly: value }),
+  setUnwatchedOnly: (value) => {
+    set({ unwatchedOnly: value })
+    void get().patchSettings({ unwatchedOnly: value })
+  },
 
   setPlayVideoId: (videoId) => {
     if (!videoId) {

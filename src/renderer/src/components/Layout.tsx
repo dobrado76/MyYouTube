@@ -78,62 +78,66 @@ export function Layout(): JSX.Element {
           </div>
 
           <nav className="tab-bar" aria-label="Main">
-            <NavLink
-              to="/"
-              end
-              title="Home"
-              aria-label="Home"
-              className={({ isActive }) => `tab-link${isActive ? ' active' : ''}`}
-            >
-              <HomeIcon />
-            </NavLink>
-            <NavLink
-              to="/subscriptions"
-              title="Subscriptions"
-              aria-label="Subscriptions"
-              className={({ isActive }) => `tab-link${isActive ? ' active' : ''}`}
-            >
-              <SubscriptionsIcon />
-            </NavLink>
-            <NavLink
-              to="/search"
-              title="Search"
-              aria-label="Search"
-              className={({ isActive }) => `tab-link${isActive || showSearch ? ' active' : ''}`}
-            >
-              <SearchIcon />
-            </NavLink>
-            <NavLink
-              to="/queue"
-              title="Queue"
-              aria-label={queueCount > 0 ? `Queue (${queueCount})` : 'Queue'}
-              className={({ isActive }) =>
-                `tab-link tab-link-queue${isActive || showQueue ? ' active' : ''}`
-              }
-            >
-              <QueueIcon />
-              {queueCount > 0 ? <span className="tab-count">{queueCount}</span> : null}
-            </NavLink>
-            <NavLink
-              to="/history"
-              title="History"
-              aria-label="History"
-              className={({ isActive }) =>
-                `tab-link${isActive || showHistory ? ' active' : ''}`
-              }
-            >
-              <HistoryIcon />
-            </NavLink>
-            <NavLink
-              to={playPath}
-              title="Play"
-              aria-label="Play"
-              className={({ isActive }) =>
-                `tab-link${isActive || showPlay ? ' active' : ''}${playVideoId ? ' has-session' : ''}`
-              }
-            >
-              <PlayIcon />
-            </NavLink>
+            <div className="tab-bar-group" aria-label="Browse">
+              <NavLink
+                to="/"
+                end
+                title="Home"
+                aria-label="Home"
+                className={({ isActive }) => `tab-link${isActive ? ' active' : ''}`}
+              >
+                <HomeIcon />
+              </NavLink>
+              <NavLink
+                to="/subscriptions"
+                title="Subscriptions"
+                aria-label="Subscriptions"
+                className={({ isActive }) => `tab-link${isActive ? ' active' : ''}`}
+              >
+                <SubscriptionsIcon />
+              </NavLink>
+              <NavLink
+                to="/search"
+                title="Search"
+                aria-label="Search"
+                className={({ isActive }) => `tab-link${isActive || showSearch ? ' active' : ''}`}
+              >
+                <SearchIcon />
+              </NavLink>
+            </div>
+            <div className="tab-bar-group" aria-label="Library">
+              <NavLink
+                to="/history"
+                title="History"
+                aria-label="History"
+                className={({ isActive }) =>
+                  `tab-link${isActive || showHistory ? ' active' : ''}`
+                }
+              >
+                <HistoryIcon />
+              </NavLink>
+              <NavLink
+                to="/queue"
+                title="Queue"
+                aria-label={queueCount > 0 ? `Queue (${queueCount})` : 'Queue'}
+                className={({ isActive }) =>
+                  `tab-link tab-link-queue${isActive || showQueue ? ' active' : ''}`
+                }
+              >
+                <QueueIcon />
+                {queueCount > 0 ? <span className="tab-count">{queueCount}</span> : null}
+              </NavLink>
+              <NavLink
+                to={playPath}
+                title="Play"
+                aria-label="Play"
+                className={({ isActive }) =>
+                  `tab-link${isActive || showPlay ? ' active' : ''}${playVideoId ? ' has-session' : ''}`
+                }
+              >
+                <PlayIcon />
+              </NavLink>
+            </div>
           </nav>
         </div>
 

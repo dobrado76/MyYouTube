@@ -137,8 +137,7 @@ export function HistoryPage(): JSX.Element {
 
       <div className="settings-pane">
         <header className="settings-pane-header">
-          <h1>{copy.title}</h1>
-          <p>{copy.blurb}</p>
+          <h1 title={copy.blurb}>{copy.title}</h1>
         </header>
 
         <div className="history-filter-bar">

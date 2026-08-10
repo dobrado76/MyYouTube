@@ -60,6 +60,7 @@ export const AppSettingsSchema = z.object({
   appearance: AppearanceSchema.default(DEFAULT_APPEARANCE),
   player: PlayerSettingsSchema.default(DEFAULT_PLAYER),
   hideShorts: z.boolean().default(true),
+  unwatchedOnly: z.boolean().default(false),
   feedMode: FeedModeSchema.default('chrono'),
   watchedThreshold: z.number().min(0).max(1).default(0.7),
   /** Case-insensitive substrings excluded from Home/Search (title + description). */
@@ -85,6 +86,7 @@ export const AppSettingsPatchSchema = z.object({
   appearance: AppearanceSchema.partial().optional(),
   player: PlayerSettingsSchema.partial().optional(),
   hideShorts: z.boolean().optional(),
+  unwatchedOnly: z.boolean().optional(),
   feedMode: FeedModeSchema.optional(),
   watchedThreshold: z.number().min(0).max(1).optional(),
   blockedKeywords: z.array(z.string().min(1).max(80)).max(100).optional(),

@@ -97,6 +97,7 @@ export function patchSettings(patch: AppSettingsPatch): AppSettings {
     ...current,
     ...(patch.theme !== undefined ? { theme: patch.theme } : {}),
     ...(patch.hideShorts !== undefined ? { hideShorts: patch.hideShorts } : {}),
+    ...(patch.unwatchedOnly !== undefined ? { unwatchedOnly: patch.unwatchedOnly } : {}),
     ...(patch.feedMode !== undefined ? { feedMode: patch.feedMode } : {}),
     ...(patch.watchedThreshold !== undefined
       ? { watchedThreshold: patch.watchedThreshold }
