@@ -4,6 +4,7 @@ import { IpcChannels } from '@shared/ipc/channels'
 import { err, ok, type Result } from '@shared/result'
 import {
   FeedQueryInputSchema,
+  HistoryListInputSchema,
   MarkWatchedInputSchema,
   SearchQueryInputSchema,
   ChannelIdInputSchema,
@@ -126,6 +127,10 @@ export function registerIpcHandlers(): void {
     wrap(() => channelRepo.listChannels())
   )
   ipcMain.handle(
+    IpcChannels.channelsListBlocked,
+    wrap(() => channelRepo.listChannels({ blockedOnly: true }))
+  )
+  ipcMain.handle(
     IpcChannels.channelsSetPreference,
     wrap((raw) => {
       const input = SetChannelPreferenceInputSchema.parse(raw)
@@ -190,6 +195,17 @@ export function registerIpcHandlers(): void {
       return video
     })
   )
+  ipcMain.handle(
+    IpcChannels.videosUnhide,
+    wrap((raw) => {
+      const { videoId } = VideoIdInputSchema.parse(raw)
+      const video = videoRepo.unhideVideo(videoId)
+      if (!video) {
+        throw Object.assign(new Error('Video not found'), { code: 'api.notFound' })
+      }
+      return video
+    })
+  )
 
   ipcMain.handle(
     IpcChannels.historyUpsertProgress,
@@ -212,8 +228,39 @@ export function registerIpcHandlers(): void {
     })
   )
   ipcMain.handle(
+    IpcChannels.historyUnmarkWatched,
+    wrap((raw) => {
+      const { videoId } = VideoIdInputSchema.parse(raw)
+      const entry = historyRepo.unmarkWatched(videoId)
+      if (!entry) {
+        throw Object.assign(new Error('History entry not found'), { code: 'api.notFound' })
+      }
+      return entry
+    })
+  )
+  ipcMain.handle(
     IpcChannels.historyList,
     wrap(() => historyRepo.listHistory())
+  )
+  ipcMain.handle(
+    IpcChannels.historyListWatched,
+    wrap((raw) => {
+      const input = HistoryListInputSchema.parse(raw ?? {})
+      return videoRepo.listWatchedVideos({
+        cursor: input.cursor ?? null,
+        limit: input.limit
+      })
+    })
+  )
+  ipcMain.handle(
+    IpcChannels.historyListHidden,
+    wrap((raw) => {
+      const input = HistoryListInputSchema.parse(raw ?? {})
+      return videoRepo.listHiddenVideos({
+        cursor: input.cursor ?? null,
+        limit: input.limit
+      })
+    })
   )
 
   ipcMain.handle(

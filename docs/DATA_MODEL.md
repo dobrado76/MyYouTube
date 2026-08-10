@@ -37,6 +37,8 @@ CREATE TABLE channels (
     hidden INTEGER NOT NULL DEFAULT 0,
     muted INTEGER NOT NULL DEFAULT 0,
     favourite INTEGER NOT NULL DEFAULT 0,
+    blocked INTEGER NOT NULL DEFAULT 0,
+    local_unsubscribed INTEGER NOT NULL DEFAULT 0,
     user_rating REAL,
     quality_weight REAL,
     fetched_at TEXT
@@ -54,6 +56,7 @@ CREATE TABLE videos (
     like_count INTEGER,
     is_short INTEGER,
     hidden INTEGER NOT NULL DEFAULT 0,
+    hidden_at TEXT,
     recommendation_score REAL,
     fetched_at TEXT,
     FOREIGN KEY(channel_id) REFERENCES channels(id)
@@ -75,7 +78,9 @@ CREATE TABLE application_settings (
 );
 ```
 
-Add indexes early for: `videos(published_at)`, `videos(channel_id)`, `videos(is_short)`, `videos(hidden)`.
+Add indexes early for: `videos(published_at)`, `videos(channel_id)`, `videos(is_short)`, `videos(hidden)`, `videos(hidden_at)`.
+
+`application_settings` also stores `blockedKeywords: string[]` (title/description substring filters for Home + Search).
 
 ---
 

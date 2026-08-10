@@ -34,9 +34,7 @@ export function VideoCard({ video, onHide, onMarkWatched }: Props): JSX.Element 
   }
 
   return (
-    <article
-      className={`video-card${video.watched ? ' watched' : ''}${inQueue ? ' in-queue' : ''}`}
-    >
+    <article className={`video-card${video.watched ? ' watched' : ''}`}>
       <button type="button" className="thumb-wrap" onClick={handleWatch}>
         {video.thumbnailUrl ? (
           <img src={video.thumbnailUrl} alt="" loading="lazy" />
@@ -57,7 +55,6 @@ export function VideoCard({ video, onHide, onMarkWatched }: Props): JSX.Element 
           {video.channelTitle ?? video.channelId}
           {video.publishedAt ? ` · ${formatAge(video.publishedAt)}` : ''}
           {video.watched ? ' · Watched' : ''}
-          {inQueue ? ' · In queue' : ''}
         </p>
       </div>
       <div className="card-actions">
@@ -66,28 +63,29 @@ export function VideoCard({ video, onHide, onMarkWatched }: Props): JSX.Element 
             type="button"
             className="icon-btn primary"
             onClick={handleWatch}
-            title="Watch"
-            aria-label="Watch"
+            title="Watch now"
+            aria-label="Watch now"
           >
             <PlayIcon />
           </button>
-          <button
-            type="button"
-            className="icon-btn"
-            onClick={handleQueue}
-            disabled={inQueue}
-            title={inQueue ? 'Already in queue' : 'Add to queue'}
-            aria-label={inQueue ? 'Already in queue' : 'Add to queue'}
-          >
-            <QueueIcon />
-          </button>
+          {!inQueue ? (
+            <button
+              type="button"
+              className="icon-btn"
+              onClick={handleQueue}
+              title="Watch later"
+              aria-label="Watch later"
+            >
+              <QueueIcon />
+            </button>
+          ) : null}
           {onMarkWatched ? (
             <button
               type="button"
               className="icon-btn"
               onClick={() => onMarkWatched(video.id)}
-              title="Mark watched"
-              aria-label="Mark watched"
+              title="Not watching"
+              aria-label="Not watching"
             >
               <CheckIcon />
             </button>
@@ -97,8 +95,8 @@ export function VideoCard({ video, onHide, onMarkWatched }: Props): JSX.Element 
           type="button"
           className="icon-btn card-action-hide"
           onClick={() => void handleHide()}
-          title="Hide"
-          aria-label="Hide"
+          title="Not watching (hide)"
+          aria-label="Not watching (hide)"
         >
           <HideIcon />
         </button>

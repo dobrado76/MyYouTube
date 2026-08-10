@@ -44,6 +44,27 @@ export function markWatched(videoId: string, completed = true): WatchHistoryEntr
   return upsertProgress(videoId, completed ? 1 : 0, completed)
 }
 
+/** Clear completed so the video can reappear under Unwatched filters. */
+export function unmarkWatched(videoId: string): WatchHistoryEntry | null {
+  const db = getDb()
+  const existing = db
+    .prepare('SELECT * FROM watch_history WHERE video_id = ?')
+    .get(videoId) as WatchHistoryRow | undefined
+  if (!existing) return null
+  db.prepare(
+    `
+    UPDATE watch_history
+    SET completed = 0,
+        watch_progress = CASE
+          WHEN watch_progress IS NULL OR watch_progress >= 0.98 THEN 0
+          ELSE watch_progress
+        END
+    WHERE video_id = ?
+  `
+  ).run(videoId)
+  return getHistory(videoId)
+}
+
 export function getHistory(videoId: string): WatchHistoryEntry | null {
   const row = getDb()
     .prepare('SELECT * FROM watch_history WHERE video_id = ?')

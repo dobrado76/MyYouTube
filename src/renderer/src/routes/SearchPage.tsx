@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent, type JSX } from 'react'
+import { useEffect, useMemo, useRef, useState, type FormEvent, type JSX } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import type { Video } from '@shared/schemas/video'
 import { SearchIcon } from '../components/icons'
@@ -9,6 +9,13 @@ import { useAppStore } from '../store/appStore'
 export function SearchPage(): JSX.Element {
   const [params, setParams] = useSearchParams()
   const { settings, recordSearch, unwatchedOnly, setUnwatchedOnly } = useAppStore()
+  const nowPlayingId = useAppStore((s) => s.nowPlaying?.id ?? null)
+  const queueIds = useAppStore((s) => s.queue.map((q) => q.id).join('\0'))
+  const queuedIds = useMemo(() => {
+    const ids = new Set(queueIds ? queueIds.split('\0') : [])
+    if (nowPlayingId) ids.add(nowPlayingId)
+    return ids
+  }, [nowPlayingId, queueIds])
   const history = settings.searchHistory
   const lastFetchedQuery = useRef<string | null>(null)
   const inflightQuery = useRef<string | null>(null)
@@ -21,7 +28,11 @@ export function SearchPage(): JSX.Element {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const visibleItems = unwatchedOnly ? items.filter((video) => !video.watched) : items
+  const visibleItems = items.filter((video) => {
+    if (queuedIds.has(video.id)) return false
+    if (unwatchedOnly && video.watched) return false
+    return true
+  })
 
   async function fetchSearch(q: string, force = false): Promise<void> {
     const trimmed = q.trim()
@@ -156,7 +167,9 @@ export function SearchPage(): JSX.Element {
         <p className="empty">No results for “{query}”.</p>
       ) : null}
       {!loading && query && items.length > 0 && visibleItems.length === 0 ? (
-        <p className="empty">No unwatched results for “{query}”.</p>
+        <p className="empty">
+          No matching results for “{query}” (queued or watched may be filtered out).
+        </p>
       ) : null}
       {!query && items.length === 0 && history.length === 0 ? (
         <p className="muted">Search from here or the top bar. Recent queries appear in History.</p>

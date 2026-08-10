@@ -83,5 +83,14 @@ export const migrations: Migration[] = [
     sql: `
       ALTER TABLE channels ADD COLUMN local_unsubscribed INTEGER NOT NULL DEFAULT 0;
     `
+  },
+  {
+    id: 3,
+    name: 'video_hidden_at',
+    sql: `
+      ALTER TABLE videos ADD COLUMN hidden_at TEXT;
+      UPDATE videos SET hidden_at = COALESCE(fetched_at, datetime('now')) WHERE hidden = 1 AND hidden_at IS NULL;
+      CREATE INDEX IF NOT EXISTS idx_videos_hidden_at ON videos(hidden_at);
+    `
   }
 ]

@@ -62,6 +62,8 @@ export const AppSettingsSchema = z.object({
   hideShorts: z.boolean().default(true),
   feedMode: FeedModeSchema.default('chrono'),
   watchedThreshold: z.number().min(0).max(1).default(0.7),
+  /** Case-insensitive substrings excluded from Home/Search (title + description). */
+  blockedKeywords: z.array(z.string().min(1).max(80)).max(100).default([]),
   youtubeProvider: z.enum(['mock', 'live']).default('mock'),
   sidebarCollapsed: z.boolean().default(false),
   updatesFolder: z.string().default(''),
@@ -85,6 +87,7 @@ export const AppSettingsPatchSchema = z.object({
   hideShorts: z.boolean().optional(),
   feedMode: FeedModeSchema.optional(),
   watchedThreshold: z.number().min(0).max(1).optional(),
+  blockedKeywords: z.array(z.string().min(1).max(80)).max(100).optional(),
   youtubeProvider: z.enum(['mock', 'live']).optional(),
   sidebarCollapsed: z.boolean().optional(),
   updatesFolder: z.string().optional(),

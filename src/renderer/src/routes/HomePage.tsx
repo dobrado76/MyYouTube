@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type JSX } from 'react'
+import { useCallback, useEffect, useMemo, useState, type JSX } from 'react'
 import type { Video } from '@shared/schemas/video'
 import { VideoCard } from '../components/VideoCard'
 import { callApi } from '../lib/api'
@@ -7,9 +7,17 @@ import { useAppStore } from '../store/appStore'
 export function HomePage(): JSX.Element {
   const { auth, hideShorts, unwatchedOnly, setHideShorts, setUnwatchedOnly, signIn } =
     useAppStore()
+  const nowPlayingId = useAppStore((s) => s.nowPlaying?.id ?? null)
+  const queueIds = useAppStore((s) => s.queue.map((q) => q.id).join('\0'))
+  const queuedIds = useMemo(() => {
+    const ids = new Set(queueIds ? queueIds.split('\0') : [])
+    if (nowPlayingId) ids.add(nowPlayingId)
+    return ids
+  }, [nowPlayingId, queueIds])
   const [items, setItems] = useState<Video[]>([])
   const [cursor, setCursor] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -44,6 +52,26 @@ export function HomePage(): JSX.Element {
     void load({ reset: true })
   }, [load])
 
+  const visibleItems = useMemo(
+    () => items.filter((video) => !queuedIds.has(video.id)),
+    [items, queuedIds]
+  )
+
+  // After triage clears the visible page, keep fetching until something shows or the feed ends.
+  useEffect(() => {
+    if (loading || refreshing || error) return
+    if (visibleItems.length > 0 || !cursor) return
+    let cancelled = false
+    setLoadingMore(true)
+    void load({ cursor }).finally(() => {
+      if (!cancelled) setLoadingMore(false)
+    })
+    return () => {
+      cancelled = true
+      setLoadingMore(false)
+    }
+  }, [visibleItems.length, cursor, loading, refreshing, error, load])
+
   async function refresh(): Promise<void> {
     setRefreshing(true)
     setError(null)
@@ -68,10 +96,11 @@ export function HomePage(): JSX.Element {
 
   async function markWatched(videoId: string): Promise<void> {
     await callApi(() => window.myyoutube.history.markWatched(videoId, true))
-    setItems((prev) =>
-      prev.map((v) => (v.id === videoId ? { ...v, watched: true, watchProgress: 1 } : v))
-    )
+    setItems((prev) => prev.filter((v) => v.id !== videoId))
   }
+
+  const busy = loading || loadingMore
+  const trulyEmpty = !busy && visibleItems.length === 0 && !cursor
 
   return (
     <section>
@@ -109,9 +138,11 @@ export function HomePage(): JSX.Element {
       ) : null}
 
       {error ? <p className="error">{error}</p> : null}
-      {loading ? <p className="muted">Loading cached feed…</p> : null}
+      {busy && visibleItems.length === 0 ? (
+        <p className="muted">{loadingMore ? 'Loading more…' : 'Loading cached feed…'}</p>
+      ) : null}
 
-      {!loading && items.length === 0 ? (
+      {trulyEmpty ? (
         <p className="empty">
           No videos yet. Use Refresh to sync subscriptions
           {hideShorts ? ' (Shorts are hidden)' : ''}.
@@ -119,7 +150,7 @@ export function HomePage(): JSX.Element {
       ) : null}
 
       <div className="video-grid">
-        {items.map((video) => (
+        {visibleItems.map((video) => (
           <VideoCard
             key={video.id}
             video={video}
@@ -129,10 +160,17 @@ export function HomePage(): JSX.Element {
         ))}
       </div>
 
-      {cursor ? (
+      {cursor && visibleItems.length > 0 ? (
         <div className="load-more">
-          <button type="button" onClick={() => void load({ cursor })}>
-            Load more
+          <button
+            type="button"
+            disabled={loadingMore}
+            onClick={() => {
+              setLoadingMore(true)
+              void load({ cursor }).finally(() => setLoadingMore(false))
+            }}
+          >
+            {loadingMore ? 'Loading…' : 'Load more'}
           </button>
         </div>
       ) : null}

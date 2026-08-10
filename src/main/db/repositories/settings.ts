@@ -101,6 +101,9 @@ export function patchSettings(patch: AppSettingsPatch): AppSettings {
     ...(patch.watchedThreshold !== undefined
       ? { watchedThreshold: patch.watchedThreshold }
       : {}),
+    ...(patch.blockedKeywords !== undefined
+      ? { blockedKeywords: patch.blockedKeywords }
+      : {}),
     ...(patch.youtubeProvider !== undefined
       ? { youtubeProvider: patch.youtubeProvider }
       : {}),

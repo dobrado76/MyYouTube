@@ -2,11 +2,18 @@ import type { Channel, ChannelPreference } from '@shared/schemas/channel'
 import { getDb } from '../index'
 import { mapChannel, type ChannelRow } from '../mappers'
 
-export function listChannels(opts?: { subscribedOnly?: boolean }): Channel[] {
+export function listChannels(opts?: {
+  subscribedOnly?: boolean
+  blockedOnly?: boolean
+}): Channel[] {
   const db = getDb()
-  const sql = opts?.subscribedOnly
-    ? `SELECT * FROM channels WHERE subscribed = 1 ORDER BY title COLLATE NOCASE`
-    : `SELECT * FROM channels ORDER BY title COLLATE NOCASE`
+  const where: string[] = []
+  if (opts?.subscribedOnly) where.push('subscribed = 1')
+  if (opts?.blockedOnly) where.push('blocked = 1')
+  const sql =
+    where.length > 0
+      ? `SELECT * FROM channels WHERE ${where.join(' AND ')} ORDER BY title COLLATE NOCASE`
+      : `SELECT * FROM channels ORDER BY title COLLATE NOCASE`
   return (db.prepare(sql).all() as ChannelRow[]).map(mapChannel)
 }
 

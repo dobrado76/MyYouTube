@@ -13,6 +13,8 @@ export const VideoSchema = z.object({
   likeCount: z.number().nullable(),
   isShort: z.boolean().nullable(),
   hidden: z.boolean(),
+  /** ISO time when the video was hidden (null if not hidden / unknown). */
+  hiddenAt: z.string().nullable().optional(),
   recommendationScore: z.number().nullable(),
   fetchedAt: z.string().nullable(),
   watched: z.boolean().optional(),

@@ -42,6 +42,7 @@ export default function App(): JSX.Element {
         <Route path="subscriptions" element={null} />
         <Route path="search" element={null} />
         <Route path="queue" element={null} />
+        <Route path="history" element={null} />
         <Route path="account" element={null} />
         <Route path="settings" element={null} />
         <Route path="play" element={null} />

@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent, type JSX } from 'react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
+import { HistoryPage } from '../routes/HistoryPage'
 import { HomePage } from '../routes/HomePage'
 import { QueuePage } from '../routes/QueuePage'
 import { SearchPage } from '../routes/SearchPage'
@@ -9,6 +10,7 @@ import { WatchPage } from '../routes/WatchPage'
 import { useAppStore } from '../store/appStore'
 import {
   AccountIcon,
+  HistoryIcon,
   HomeIcon,
   PlayIcon,
   QueueIcon,
@@ -28,6 +30,7 @@ export function Layout(): JSX.Element {
   const showSubscriptions = pathname.startsWith('/subscriptions')
   const showSearch = pathname.startsWith('/search')
   const showQueue = pathname.startsWith('/queue')
+  const showHistory = pathname.startsWith('/history')
   const showAccount = pathname.startsWith('/account')
   const showSettings = pathname.startsWith('/settings')
   const showPrefs = showAccount || showSettings
@@ -112,6 +115,16 @@ export function Layout(): JSX.Element {
               {queueCount > 0 ? <span className="tab-count">{queueCount}</span> : null}
             </NavLink>
             <NavLink
+              to="/history"
+              title="History"
+              aria-label="History"
+              className={({ isActive }) =>
+                `tab-link${isActive || showHistory ? ' active' : ''}`
+              }
+            >
+              <HistoryIcon />
+            </NavLink>
+            <NavLink
               to={playPath}
               title="Play"
               aria-label="Play"
@@ -142,7 +155,7 @@ export function Layout(): JSX.Element {
                   if (e.target.value) runSearch(e.target.value)
                 }}
               >
-                <option value="">History</option>
+                <option value="">Recent</option>
                 {history.map((entry) => (
                   <option key={entry} value={entry}>
                     {entry}
@@ -199,6 +212,9 @@ export function Layout(): JSX.Element {
         </div>
         <div className="tab-panel" hidden={!showQueue}>
           <QueuePage />
+        </div>
+        <div className="tab-panel" hidden={!showHistory}>
+          <HistoryPage />
         </div>
         <div className="tab-panel" hidden={!showPrefs}>
           <SettingsPage />

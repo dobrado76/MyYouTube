@@ -25,10 +25,16 @@ export const IpcChannels = {
 
   videosGet: 'videos.get',
   videosHide: 'videos.hide',
+  videosUnhide: 'videos.unhide',
 
   historyUpsertProgress: 'history.upsertProgress',
   historyMarkWatched: 'history.markWatched',
+  historyUnmarkWatched: 'history.unmarkWatched',
   historyList: 'history.list',
+  historyListWatched: 'history.listWatched',
+  historyListHidden: 'history.listHidden',
+
+  channelsListBlocked: 'channels.listBlocked',
 
   searchQuery: 'search.query',
 

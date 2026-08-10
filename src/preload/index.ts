@@ -43,6 +43,7 @@ const api: MyYouTubeApi = {
   },
   channels: {
     list: () => invoke(IpcChannels.channelsList),
+    listBlocked: () => invoke(IpcChannels.channelsListBlocked),
     setPreference: (channelId, preference) =>
       invoke(IpcChannels.channelsSetPreference, { channelId, preference }),
     unsubscribe: (channelId) => invoke(IpcChannels.channelsUnsubscribe, { channelId }),
@@ -51,7 +52,8 @@ const api: MyYouTubeApi = {
   },
   videos: {
     get: (videoId) => invoke(IpcChannels.videosGet, { videoId }),
-    hide: (videoId) => invoke(IpcChannels.videosHide, { videoId })
+    hide: (videoId) => invoke(IpcChannels.videosHide, { videoId }),
+    unhide: (videoId) => invoke(IpcChannels.videosUnhide, { videoId })
   },
   history: {
     upsertProgress: (videoId, watchProgress, completed) =>
@@ -62,7 +64,10 @@ const api: MyYouTubeApi = {
       }),
     markWatched: (videoId, completed = true) =>
       invoke(IpcChannels.historyMarkWatched, { videoId, completed }),
-    list: () => invoke(IpcChannels.historyList)
+    unmarkWatched: (videoId) => invoke(IpcChannels.historyUnmarkWatched, { videoId }),
+    list: () => invoke(IpcChannels.historyList),
+    listWatched: (input) => invoke(IpcChannels.historyListWatched, input ?? {}),
+    listHidden: (input) => invoke(IpcChannels.historyListHidden, input ?? {})
   },
   search: {
     query: (input) => invoke(IpcChannels.searchQuery, input)

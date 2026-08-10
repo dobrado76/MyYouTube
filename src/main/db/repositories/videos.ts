@@ -1,5 +1,7 @@
 import type { FeedFilters } from '@shared/schemas/feed'
+import type { HistoryListPage, HistoryVideo } from '@shared/schemas/historyList'
 import type { Video } from '@shared/schemas/video'
+import { appendBlockedKeywordClauses } from '../keywordFilter'
 import { getDb } from '../index'
 import { mapVideo, type VideoRow } from '../mappers'
 
@@ -72,7 +74,17 @@ export function getVideo(id: string): Video | null {
 }
 
 export function hideVideo(id: string): Video | null {
-  getDb().prepare('UPDATE videos SET hidden = 1 WHERE id = ?').run(id)
+  const now = new Date().toISOString()
+  getDb()
+    .prepare('UPDATE videos SET hidden = 1, hidden_at = ? WHERE id = ?')
+    .run(now, id)
+  return getVideo(id)
+}
+
+export function unhideVideo(id: string): Video | null {
+  getDb()
+    .prepare('UPDATE videos SET hidden = 0, hidden_at = NULL WHERE id = ?')
+    .run(id)
   return getVideo(id)
 }
 
@@ -80,6 +92,9 @@ export function queryFeedVideos(opts: {
   filters: FeedFilters
   cursor: string | null
   limit: number
+  blockedKeywords?: string[]
+  /** Watch-later / now-playing ids — keep these off Home (Queue tab only). */
+  excludeVideoIds?: string[]
 }): { items: Video[]; nextCursor: string | null } {
   const db = getDb()
   const where: string[] = [
@@ -107,6 +122,15 @@ export function queryFeedVideos(opts: {
     where.push('v.channel_id = @channelId')
     params.channelId = opts.filters.channelId
   }
+  const excludeIds = [...new Set((opts.excludeVideoIds ?? []).filter(Boolean))]
+  if (excludeIds.length > 0) {
+    const placeholders = excludeIds.map((_, i) => `@ex${i}`)
+    where.push(`v.id NOT IN (${placeholders.join(', ')})`)
+    excludeIds.forEach((id, i) => {
+      params[`ex${i}`] = id
+    })
+  }
+  appendBlockedKeywordClauses(where, params, opts.blockedKeywords ?? [])
   if (opts.cursor) {
     where.push('(v.published_at < @cursor OR (v.published_at = @cursor AND v.id < @cursorId))')
     const [publishedAt, id] = opts.cursor.split('|')
@@ -134,5 +158,93 @@ export function queryFeedVideos(opts: {
       ? `${last.publishedAt}|${last.id}`
       : null
 
+  return { items, nextCursor }
+}
+
+function mapHistoryVideo(row: VideoRow): HistoryVideo {
+  const video = mapVideo(row)
+  return {
+    ...video,
+    markedAt: row.marked_at ?? video.hiddenAt ?? video.fetchedAt ?? new Date(0).toISOString()
+  }
+}
+
+export function listWatchedVideos(opts: {
+  cursor: string | null
+  limit: number
+}): HistoryListPage {
+  const db = getDb()
+  const where = ['wh.completed = 1']
+  const params: Record<string, string | number> = { limit: opts.limit }
+  if (opts.cursor) {
+    where.push(
+      `(COALESCE(wh.last_opened_at, wh.first_opened_at) < @cursor OR (COALESCE(wh.last_opened_at, wh.first_opened_at) = @cursor AND v.id < @cursorId))`
+    )
+    const [markedAt, id] = opts.cursor.split('|')
+    params.cursor = markedAt ?? ''
+    params.cursorId = id ?? ''
+  }
+
+  const rows = db
+    .prepare(
+      `
+    SELECT v.*, c.title AS channel_title,
+      1 AS watched,
+      wh.watch_progress AS watch_progress,
+      COALESCE(wh.last_opened_at, wh.first_opened_at) AS marked_at
+    FROM watch_history wh
+    INNER JOIN videos v ON v.id = wh.video_id
+    LEFT JOIN channels c ON c.id = v.channel_id
+    WHERE ${where.join(' AND ')}
+    ORDER BY COALESCE(wh.last_opened_at, wh.first_opened_at) DESC, v.id DESC
+    LIMIT @limit
+  `
+    )
+    .all(params) as VideoRow[]
+
+  const items = rows.map(mapHistoryVideo)
+  const last = items[items.length - 1]
+  const nextCursor =
+    items.length === opts.limit && last ? `${last.markedAt}|${last.id}` : null
+  return { items, nextCursor }
+}
+
+export function listHiddenVideos(opts: {
+  cursor: string | null
+  limit: number
+}): HistoryListPage {
+  const db = getDb()
+  const where = ['v.hidden = 1']
+  const params: Record<string, string | number> = { limit: opts.limit }
+  if (opts.cursor) {
+    where.push(
+      `(COALESCE(v.hidden_at, v.fetched_at, '') < @cursor OR (COALESCE(v.hidden_at, v.fetched_at, '') = @cursor AND v.id < @cursorId))`
+    )
+    const [markedAt, id] = opts.cursor.split('|')
+    params.cursor = markedAt ?? ''
+    params.cursorId = id ?? ''
+  }
+
+  const rows = db
+    .prepare(
+      `
+    SELECT v.*, c.title AS channel_title,
+      CASE WHEN wh.completed = 1 THEN 1 ELSE 0 END AS watched,
+      wh.watch_progress AS watch_progress,
+      COALESCE(v.hidden_at, v.fetched_at) AS marked_at
+    FROM videos v
+    LEFT JOIN channels c ON c.id = v.channel_id
+    LEFT JOIN watch_history wh ON wh.video_id = v.id
+    WHERE ${where.join(' AND ')}
+    ORDER BY COALESCE(v.hidden_at, v.fetched_at) DESC, v.id DESC
+    LIMIT @limit
+  `
+    )
+    .all(params) as VideoRow[]
+
+  const items = rows.map(mapHistoryVideo)
+  const last = items[items.length - 1]
+  const nextCursor =
+    items.length === opts.limit && last ? `${last.markedAt}|${last.id}` : null
   return { items, nextCursor }
 }

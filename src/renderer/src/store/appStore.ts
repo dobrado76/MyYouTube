@@ -44,7 +44,8 @@ type AppState = {
   /** Update resume for the active item only when `videoId` still matches nowPlaying. */
   updateNowPlayingProgress: (videoId: string, progress: number, completed?: boolean) => void
   /**
-   * Skip to next up-next item. Marks current watched when resumeProgress > 0.6.
+   * Skip to next up-next item. Marks current watched when resumeProgress
+   * meets settings.watchedThreshold.
    */
   playNextInQueue: () => Promise<QueueItem | null>
   /** Skip to previous from playHistory (does not mark watched). */
@@ -298,12 +299,12 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   playNextInQueue: async () => {
-    const { nowPlaying, queue, playHistory } = get()
+    const { nowPlaying, queue, playHistory, settings } = get()
     const next = queue[0]
     if (!next) return null
-    const SKIP_MARK_WATCHED = 0.6
+    const threshold = settings.watchedThreshold
     const progress = nowPlaying?.resumeProgress ?? 0
-    const markWatched = Boolean(nowPlaying && progress > SKIP_MARK_WATCHED)
+    const markWatched = Boolean(nowPlaying && progress >= threshold)
     if (markWatched && nowPlaying) {
       try {
         await callApi(() => window.myyoutube.history.markWatched(nowPlaying.id, true))

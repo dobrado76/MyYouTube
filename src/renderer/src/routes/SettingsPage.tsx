@@ -1,5 +1,6 @@
-import { useEffect, useState, type JSX } from 'react'
+import { useEffect, useState, type FormEvent, type JSX } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
+import type { Channel } from '@shared/schemas/channel'
 import {
   DEFAULT_APPEARANCE,
   type Appearance,
@@ -45,6 +46,7 @@ const SECTIONS = [
   { id: 'player', label: 'Player' },
   { id: 'performance', label: 'Performance' },
   { id: 'feed', label: 'Feed' },
+  { id: 'filters', label: 'Filters' },
   { id: 'updates', label: 'Updates' }
 ] as const
 
@@ -74,6 +76,10 @@ const SECTION_COPY: Record<SectionId, { title: string; blurb: string }> = {
   feed: {
     title: 'Feed',
     blurb: 'Shorts filtering and watched threshold.'
+  },
+  filters: {
+    title: 'Filters',
+    blurb: 'Blocked channels and keyword filters for Home and Search.'
   },
   updates: {
     title: 'Updates',
@@ -110,6 +116,11 @@ export function SettingsPage(): JSX.Element {
   const [hwBusy, setHwBusy] = useState(false)
   const [hwError, setHwError] = useState<string | null>(null)
   const [showGoogleHelp, setShowGoogleHelp] = useState(false)
+  const [blockedChannels, setBlockedChannels] = useState<Channel[]>([])
+  const [blockedLoading, setBlockedLoading] = useState(false)
+  const [blockedError, setBlockedError] = useState<string | null>(null)
+  const [keywordDraft, setKeywordDraft] = useState('')
+  const [keywordError, setKeywordError] = useState<string | null>(null)
 
   useEffect(() => {
     setFolderDraft(settings.updatesFolder)
@@ -125,6 +136,28 @@ export function SettingsPage(): JSX.Element {
       setShowGoogleHelp(false)
     }
   }, [pathname])
+
+  useEffect(() => {
+    if (section !== 'filters') return
+    let cancelled = false
+    setBlockedLoading(true)
+    setBlockedError(null)
+    void callApi(() => window.myyoutube.channels.listBlocked())
+      .then((list) => {
+        if (!cancelled) setBlockedChannels(list)
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setBlockedError(err instanceof Error ? err.message : 'Failed to load blocked channels')
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setBlockedLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [section])
 
   useEffect(() => {
     void callApi(() => window.myyoutube.app.hardwareAccelerationStatus())
@@ -781,12 +814,141 @@ export function SettingsPage(): JSX.Element {
                   max={1}
                   step={0.05}
                   value={settings.watchedThreshold}
-                  onChange={(e) =>
-                    void patchSettings({ watchedThreshold: Number(e.target.value) })
-                  }
+                  onChange={(e) => {
+                    const value = Number(e.target.value)
+                    if (!Number.isFinite(value)) return
+                    void patchSettings({
+                      watchedThreshold: Math.min(1, Math.max(0.1, value))
+                    })
+                  }}
                 />
               </label>
-              <p className="settings-note">Fraction of video watched before counting as watched (0.1–1).</p>
+              <p className="settings-note">
+                Fraction of the video (0.1–1) that counts as watched — used for progress and when
+                pressing <strong>Next</strong> in the player (at or above this, Next marks watched).
+                Default 0.7 (70%).
+              </p>
+            </div>
+          </div>
+        ) : null}
+
+        {section === 'filters' ? (
+          <div className="settings-stack">
+            <div className="settings-card">
+              <h2>Blocked channels</h2>
+              <p className="settings-note">
+                Blocked authors never appear in Home or Search. Block from Subscriptions or History
+                cards; unblock here.
+              </p>
+              {blockedError ? <p className="error">{blockedError}</p> : null}
+              {blockedLoading ? <p className="muted">Loading…</p> : null}
+              {!blockedLoading && blockedChannels.length === 0 ? (
+                <p className="muted">No blocked channels.</p>
+              ) : null}
+              <ul className="history-channel-list">
+                {blockedChannels.map((channel) => (
+                  <li key={channel.id} className="history-channel-row">
+                    {channel.thumbnailUrl ? (
+                      <img src={channel.thumbnailUrl} alt="" className="history-channel-thumb" />
+                    ) : (
+                      <div className="history-channel-thumb empty" />
+                    )}
+                    <div className="history-channel-meta">
+                      <strong>{channel.title}</strong>
+                      {channel.description ? (
+                        <p className="muted">{channel.description.slice(0, 140)}</p>
+                      ) : null}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        void callApi(() =>
+                          window.myyoutube.channels.setPreference(channel.id, 'normal')
+                        )
+                          .then(() => {
+                            setBlockedChannels((prev) => prev.filter((c) => c.id !== channel.id))
+                          })
+                          .catch((err) => {
+                            setBlockedError(
+                              err instanceof Error ? err.message : 'Failed to unblock'
+                            )
+                          })
+                      }}
+                    >
+                      Unblock
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            <div className="settings-card">
+              <h2>Keyword filters</h2>
+              <form
+                className="keyword-add-form"
+                onSubmit={(event: FormEvent) => {
+                  event.preventDefault()
+                  setKeywordError(null)
+                  const next = keywordDraft.trim()
+                  if (!next) return
+                  if (next.length > 80) {
+                    setKeywordError('Keyword must be 80 characters or fewer.')
+                    return
+                  }
+                  const existing = settings.blockedKeywords
+                  if (existing.some((k) => k.toLowerCase() === next.toLowerCase())) {
+                    setKeywordError('That keyword is already listed.')
+                    return
+                  }
+                  if (existing.length >= 100) {
+                    setKeywordError('Maximum 100 keywords.')
+                    return
+                  }
+                  void patchSettings({ blockedKeywords: [...existing, next] })
+                  setKeywordDraft('')
+                }}
+              >
+                <label className="settings-field">
+                  <span>Add keyword</span>
+                  <div className="path-controls">
+                    <input
+                      type="text"
+                      value={keywordDraft}
+                      placeholder="e.g. spoilers"
+                      maxLength={80}
+                      onChange={(e) => setKeywordDraft(e.target.value)}
+                    />
+                    <button type="submit" className="primary">
+                      Add
+                    </button>
+                  </div>
+                </label>
+              </form>
+              {keywordError ? <p className="error">{keywordError}</p> : null}
+              <p className="settings-note">
+                Case-insensitive substring match on title and description for Home and Search.
+              </p>
+              {settings.blockedKeywords.length === 0 ? (
+                <p className="muted">No keyword filters yet.</p>
+              ) : (
+                <ul className="keyword-list">
+                  {settings.blockedKeywords.map((keyword) => (
+                    <li key={keyword} className="keyword-row">
+                      <code>{keyword}</code>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          void patchSettings({
+                            blockedKeywords: settings.blockedKeywords.filter((k) => k !== keyword)
+                          })
+                        }
+                      >
+                        Remove
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           </div>
         ) : null}

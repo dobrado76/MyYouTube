@@ -29,11 +29,13 @@ export type VideoRow = {
   like_count: number | null
   is_short: number | null
   hidden: number
+  hidden_at?: string | null
   recommendation_score: number | null
   fetched_at: string | null
   channel_title?: string | null
   watched?: number | null
   watch_progress?: number | null
+  marked_at?: string | null
 }
 
 export type WatchHistoryRow = {
@@ -76,6 +78,7 @@ export function mapVideo(row: VideoRow): Video {
     likeCount: row.like_count,
     isShort: row.is_short === null ? null : row.is_short === 1,
     hidden: row.hidden === 1,
+    hiddenAt: row.hidden_at ?? null,
     recommendationScore: row.recommendation_score,
     fetchedAt: row.fetched_at,
     watched: row.watched === 1,

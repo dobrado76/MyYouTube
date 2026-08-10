@@ -15,10 +15,17 @@ export async function queryFeed(input: FeedQueryInput): Promise<FeedPage> {
     channelId: input.filters?.channelId ?? null
   })
 
+  const excludeVideoIds = [
+    ...(settings.nowPlaying ? [settings.nowPlaying.id] : []),
+    ...settings.playQueue.map((item) => item.id)
+  ]
+
   const { items, nextCursor } = videoRepo.queryFeedVideos({
     filters,
     cursor: input.cursor ?? null,
-    limit: input.limit
+    limit: input.limit,
+    blockedKeywords: settings.blockedKeywords,
+    excludeVideoIds
   })
 
   return {

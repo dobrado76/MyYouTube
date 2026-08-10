@@ -3,6 +3,8 @@ import type { Video } from '@shared/schemas/video'
 import * as videoRepo from '../db/repositories/videos'
 import * as channelRepo from '../db/repositories/channels'
 import * as searchCache from '../db/repositories/searchCache'
+import { getSettings } from '../db/repositories/settings'
+import { videoMatchesBlockedKeyword } from '../db/keywordFilter'
 import { getYouTubeProvider } from '../youtube/provider'
 
 export async function searchVideos(input: SearchQueryInput): Promise<SearchPage> {
@@ -62,7 +64,14 @@ export async function searchVideos(input: SearchQueryInput): Promise<SearchPage>
 }
 
 function hydrateVideos(videoIds: string[]): Video[] {
+  const keywords = getSettings().blockedKeywords
   return videoIds
     .map((id) => videoRepo.getVideo(id))
-    .filter((v): v is Video => v != null && !v.hidden)
+    .filter((v): v is Video => {
+      if (v == null || v.hidden) return false
+      const channel = channelRepo.getChannel(v.channelId)
+      if (channel?.blocked) return false
+      if (videoMatchesBlockedKeyword(v, keywords)) return false
+      return true
+    })
 }

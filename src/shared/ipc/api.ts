@@ -4,6 +4,7 @@ import type { CredentialsStatus, SaveCredentialsInput } from '../schemas/credent
 import type { Channel, ChannelPreference } from '../schemas/channel'
 import type { FeedPage, FeedQueryInput } from '../schemas/feed'
 import type { WatchHistoryEntry } from '../schemas/history'
+import type { HistoryListInput, HistoryListPage } from '../schemas/historyList'
 import type { SearchPage, SearchQueryInput } from '../schemas/search'
 import type { AppSettings, AppSettingsPatch } from '../schemas/settings'
 import type { UpdateCheckResult } from '../schemas/updates'
@@ -42,6 +43,7 @@ export type MyYouTubeApi = {
   }
   channels: {
     list: () => Promise<Result<Channel[]>>
+    listBlocked: () => Promise<Result<Channel[]>>
     setPreference: (
       channelId: string,
       preference: ChannelPreference
@@ -55,6 +57,7 @@ export type MyYouTubeApi = {
   videos: {
     get: (videoId: string) => Promise<Result<VideoDetail>>
     hide: (videoId: string) => Promise<Result<Video>>
+    unhide: (videoId: string) => Promise<Result<Video>>
   }
   history: {
     upsertProgress: (
@@ -63,7 +66,10 @@ export type MyYouTubeApi = {
       completed?: boolean
     ) => Promise<Result<WatchHistoryEntry>>
     markWatched: (videoId: string, completed?: boolean) => Promise<Result<WatchHistoryEntry>>
+    unmarkWatched: (videoId: string) => Promise<Result<WatchHistoryEntry>>
     list: () => Promise<Result<WatchHistoryEntry[]>>
+    listWatched: (input?: Partial<HistoryListInput>) => Promise<Result<HistoryListPage>>
+    listHidden: (input?: Partial<HistoryListInput>) => Promise<Result<HistoryListPage>>
   }
   search: {
     query: (input: SearchQueryInput) => Promise<Result<SearchPage>>
