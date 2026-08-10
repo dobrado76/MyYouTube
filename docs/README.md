@@ -29,6 +29,7 @@ Start with the root [README.md](../README.md) for install and overview. Use this
 | [PROJECT_FORMAT.md](PROJECT_FORMAT.md) | `userData` paths, settings layout |
 | [YOUTUBE_API.md](YOUTUBE_API.md) | Data API v3, quota, caching |
 | [SECURITY.md](SECURITY.md) | OAuth, secrets, ToS posture |
+| [GOOGLE_CLOUD_SETUP.md](GOOGLE_CLOUD_SETUP.md) | Enable YouTube Data API v3 + OAuth (also in-app Help) |
 
 ### Releases
 

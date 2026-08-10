@@ -68,10 +68,13 @@ npm run dev
 
 1. [Google Cloud Console](https://console.cloud.google.com/) → enable **YouTube Data API v3**.
 2. Create OAuth credentials → application type **Desktop app**.
-3. In MyYouTube: **Settings → Account / Provider** → paste **Client ID** and **Client Secret** (API key optional) → **Save**.
-4. **Sign in with Google** (system browser; tokens stay under Electron `userData`).
+3. Enable **YouTube Data API v3**:  
+   https://console.cloud.google.com/apis/library/youtube.googleapis.com  
+   (or **Settings → Account → Help** for the full walkthrough).
+4. In MyYouTube: **Settings → Account** → paste **Client ID** and **Client Secret** (API key optional) → **Save**.
+5. **Sign in with Google** (system browser; tokens stay under Electron `userData`).
 
-No `.env` file is required for normal use. Secrets must never be committed — see [docs/SECURITY.md](docs/SECURITY.md).
+No `.env` file is required for normal use. Secrets must never be committed — see [docs/SECURITY.md](docs/SECURITY.md) and [docs/GOOGLE_CLOUD_SETUP.md](docs/GOOGLE_CLOUD_SETUP.md).
 
 ### Isolated profile (optional)
 

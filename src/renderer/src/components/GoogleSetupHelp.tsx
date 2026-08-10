@@ -61,16 +61,13 @@ export function GoogleSetupHelp({
             Open the API library page for YouTube Data API v3:
             <div className="path-controls help-link-row">
               <input type="text" readOnly value={YOUTUBE_DATA_API_LIBRARY_URL} />
-              <a
-                className="button-link"
-                href={YOUTUBE_DATA_API_LIBRARY_URL}
-                target="_blank"
-                rel="noreferrer"
+              <button
+                type="button"
+                className="primary"
+                onClick={() => window.open(YOUTUBE_DATA_API_LIBRARY_URL, '_blank')}
               >
-                <button type="button" className="primary">
-                  Open
-                </button>
-              </a>
+                Open
+              </button>
             </div>
           </li>
           <li>

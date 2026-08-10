@@ -313,8 +313,12 @@ export function SettingsPage(): JSX.Element {
 
       <div className="settings-pane">
         <header className="settings-pane-header">
-          <h1>{copy.title}</h1>
-          <p>{copy.blurb}</p>
+          <h1>{section === 'account' && showGoogleHelp ? 'Google Cloud setup' : copy.title}</h1>
+          <p>
+            {section === 'account' && showGoogleHelp
+              ? 'Enable YouTube Data API v3 and create a Desktop OAuth client for MyYouTube.'
+              : copy.blurb}
+          </p>
         </header>
 
         {section === 'account' && showGoogleHelp ? (
@@ -392,15 +396,10 @@ export function SettingsPage(): JSX.Element {
             </div>
 
             <div className="settings-card">
-              <div className="settings-card-head">
-                <h2>OAuth credentials</h2>
-                <button type="button" onClick={() => setShowGoogleHelp(true)}>
-                  Help
-                </button>
-              </div>
+              <h2>OAuth credentials</h2>
               <p className="settings-note">
                 Prefer a <strong>Desktop</strong> OAuth client. Web clients must allow the redirect
-                URI below.
+                URI below. Use <strong>Help</strong> above for the full Google Cloud walkthrough.
               </p>
 
               <label className="settings-field">
