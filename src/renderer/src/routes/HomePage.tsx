@@ -5,6 +5,7 @@ import { callApi } from '../lib/api'
 import {
   filterDiscoveryVideos,
   sortedVideoIdList,
+  useOmittedDiscoveryIds,
   useSortedVideoIds
 } from '../lib/discovery'
 import { useActivated } from '../lib/sessionRoute'
@@ -16,9 +17,18 @@ type Props = {
 
 export function HomePage({ active }: Props): JSX.Element {
   const activated = useActivated(active)
-  const { auth, hideShorts, unwatchedOnly, setHideShorts, setUnwatchedOnly, signIn } =
-    useAppStore()
+  const {
+    auth,
+    hideShorts,
+    unwatchedOnly,
+    setHideShorts,
+    setUnwatchedOnly,
+    signIn,
+    omitFromDiscovery,
+    settings
+  } = useAppStore()
   const sortedIds = useSortedVideoIds()
+  const omittedIds = useOmittedDiscoveryIds()
   const [items, setItems] = useState<Video[]>([])
   const [cursor, setCursor] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -60,8 +70,12 @@ export function HomePage({ active }: Props): JSX.Element {
   }, [load, activated])
 
   const visibleItems = useMemo(
-    () => filterDiscoveryVideos(items, sortedIds, unwatchedOnly),
-    [items, sortedIds, unwatchedOnly]
+    () =>
+      filterDiscoveryVideos(items, sortedIds, unwatchedOnly, {
+        watchedThreshold: settings.watchedThreshold,
+        omittedIds
+      }),
+    [items, sortedIds, unwatchedOnly, settings.watchedThreshold, omittedIds]
   )
 
   // After triage clears the visible page, keep fetching until something shows or the feed ends.
@@ -96,14 +110,15 @@ export function HomePage({ active }: Props): JSX.Element {
     }
   }
 
-  async function hideVideo(videoId: string): Promise<void> {
-    await callApi(() => window.myyoutube.videos.hide(videoId))
+  function hideVideo(videoId: string): void {
+    omitFromDiscovery(videoId)
     setItems((prev) => prev.filter((v) => v.id !== videoId))
   }
 
   async function markWatched(videoId: string): Promise<void> {
-    await callApi(() => window.myyoutube.history.markWatched(videoId, true))
+    omitFromDiscovery(videoId)
     setItems((prev) => prev.filter((v) => v.id !== videoId))
+    await callApi(() => window.myyoutube.history.markWatched(videoId, true))
   }
 
   const busy = loading || loadingMore
@@ -161,7 +176,7 @@ export function HomePage({ active }: Props): JSX.Element {
           <VideoCard
             key={video.id}
             video={video}
-            onHide={(id) => void hideVideo(id)}
+            onHide={hideVideo}
             onMarkWatched={(id) => void markWatched(id)}
           />
         ))}

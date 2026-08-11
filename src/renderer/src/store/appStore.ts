@@ -33,6 +33,11 @@ type AppState = {
   queue: QueueItem[]
   /** Recently played for Previous (most recent last). */
   playHistory: QueueItem[]
+  /**
+   * Video ids removed from Discovery this session (hide / not-watching / watched via Next).
+   * Keeps Search/Home/Channel from resurrecting a card via in-flight fetch races.
+   */
+  omittedDiscoveryIds: string[]
   bootstrap: () => Promise<void>
   clearStartupRoute: () => void
   refreshAuth: () => Promise<void>
@@ -40,6 +45,8 @@ type AppState = {
   recordSearch: (query: string) => Promise<void>
   setHideShorts: (value: boolean) => void
   setUnwatchedOnly: (value: boolean) => void
+  /** Drop a video from all Discovery lists for the rest of the session. */
+  omitFromDiscovery: (videoId: string) => void
   openChannel: (channel: ActiveChannel) => void
   clearActiveChannel: () => void
   /** @deprecated prefer watchNow / clearNowPlaying */
@@ -146,6 +153,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   nowPlaying: null,
   queue: [],
   playHistory: [],
+  omittedDiscoveryIds: [],
 
   applyTheme: (settings) => {
     applyAppearance(settings.theme, settings.appearance)
@@ -232,6 +240,14 @@ export const useAppStore = create<AppState>((set, get) => ({
   setUnwatchedOnly: (value) => {
     set({ unwatchedOnly: value })
     void get().patchSettings({ unwatchedOnly: value })
+  },
+
+  omitFromDiscovery: (videoId) => {
+    const id = videoId.trim()
+    if (!id) return
+    const current = get().omittedDiscoveryIds
+    if (current.includes(id)) return
+    set({ omittedDiscoveryIds: [...current, id] })
   },
 
   openChannel: (channel) => {
@@ -357,6 +373,9 @@ export const useAppStore = create<AppState>((set, get) => ({
     ) {
       return
     }
+    if (completed || nextProgress >= get().settings.watchedThreshold) {
+      get().omitFromDiscovery(videoId)
+    }
     set({
       nowPlaying: {
         ...np,
@@ -374,6 +393,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     const progress = nowPlaying?.resumeProgress ?? 0
     const markWatched = Boolean(nowPlaying && progress >= threshold)
     if (markWatched && nowPlaying) {
+      get().omitFromDiscovery(nowPlaying.id)
       try {
         await callApi(() => window.myyoutube.history.markWatched(nowPlaying.id, true))
       } catch {
@@ -422,6 +442,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   finishCurrentAndPlayNext: async () => {
     const current = get().nowPlaying
     if (current) {
+      get().omitFromDiscovery(current.id)
       try {
         await callApi(() => window.myyoutube.history.markWatched(current.id, true))
       } catch {

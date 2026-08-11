@@ -59,7 +59,7 @@ export class MockYouTubeProvider implements YouTubeProvider {
         (v.channelTitle ?? '').toLowerCase().includes(q)
     )
     const start = query.pageToken ? Number.parseInt(query.pageToken, 10) : 0
-    const limit = query.limit ?? 20
+    const limit = query.limit ?? 50
     const slice = matched.slice(start, start + limit)
     const next = start + limit < matched.length ? String(start + limit) : null
     return { items: slice.map((v) => ({ ...v })), nextPageToken: next }

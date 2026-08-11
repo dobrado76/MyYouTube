@@ -1,10 +1,11 @@
 import { z } from 'zod'
+import { SEARCH_PAGE_SIZE } from '../constants/search'
 import { VideoSchema } from './video'
 
 export const SearchQueryInputSchema = z.object({
   query: z.string().min(1).max(200),
   pageToken: z.string().nullable().optional(),
-  limit: z.number().int().min(1).max(50).default(20)
+  limit: z.number().int().min(1).max(SEARCH_PAGE_SIZE).default(SEARCH_PAGE_SIZE)
 })
 
 export type SearchQueryInput = z.infer<typeof SearchQueryInputSchema>

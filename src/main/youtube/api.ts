@@ -202,7 +202,7 @@ export class YouTubeApiProvider implements YouTubeProvider {
       part: 'snippet',
       type: 'video',
       q: query.query,
-      maxResults: String(query.limit ?? 20)
+      maxResults: String(query.limit ?? 50)
     }
     if (query.pageToken) params.pageToken = query.pageToken
 

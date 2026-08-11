@@ -6,6 +6,7 @@ import { callApi } from '../lib/api'
 import {
   filterDiscoveryVideos,
   sortedVideoIdList,
+  useOmittedDiscoveryIds,
   useSortedVideoIds
 } from '../lib/discovery'
 import { useActivated } from '../lib/sessionRoute'
@@ -26,9 +27,12 @@ export function ChannelPage({ active }: Props): JSX.Element {
     hideShorts,
     unwatchedOnly,
     setHideShorts,
-    setUnwatchedOnly
+    setUnwatchedOnly,
+    omitFromDiscovery,
+    settings
   } = useAppStore()
   const sortedIds = useSortedVideoIds()
+  const omittedIds = useOmittedDiscoveryIds()
 
   const channelId = activeChannel?.id ?? routeChannelId ?? null
   const channelTitle = activeChannel?.title ?? channelId ?? 'Channel'
@@ -102,8 +106,12 @@ export function ChannelPage({ active }: Props): JSX.Element {
 
   // Discovery ≠ Sorted: queued / now-playing never appear on Channel (same as Home).
   const visibleItems = useMemo(
-    () => filterDiscoveryVideos(items, sortedIds, unwatchedOnly),
-    [items, sortedIds, unwatchedOnly]
+    () =>
+      filterDiscoveryVideos(items, sortedIds, unwatchedOnly, {
+        watchedThreshold: settings.watchedThreshold,
+        omittedIds
+      }),
+    [items, sortedIds, unwatchedOnly, settings.watchedThreshold, omittedIds]
   )
 
   useEffect(() => {
@@ -120,14 +128,15 @@ export function ChannelPage({ active }: Props): JSX.Element {
     }
   }, [activated, visibleItems.length, cursor, loading, loadingMore, error, load])
 
-  async function hideVideo(videoId: string): Promise<void> {
-    await callApi(() => window.myyoutube.videos.hide(videoId))
+  function hideVideo(videoId: string): void {
+    omitFromDiscovery(videoId)
     setItems((prev) => prev.filter((v) => v.id !== videoId))
   }
 
   async function markWatched(videoId: string): Promise<void> {
-    await callApi(() => window.myyoutube.history.markWatched(videoId, true))
+    omitFromDiscovery(videoId)
     setItems((prev) => prev.filter((v) => v.id !== videoId))
+    await callApi(() => window.myyoutube.history.markWatched(videoId, true))
   }
 
   function closeChannel(): void {
@@ -196,7 +205,7 @@ export function ChannelPage({ active }: Props): JSX.Element {
           <VideoCard
             key={video.id}
             video={video}
-            onHide={(id) => void hideVideo(id)}
+            onHide={hideVideo}
             onMarkWatched={(id) => void markWatched(id)}
           />
         ))}

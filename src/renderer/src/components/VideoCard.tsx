@@ -16,13 +16,20 @@ export function VideoCard({ video, onHide, onMarkWatched }: Props): JSX.Element 
   const watchNow = useAppStore((s) => s.watchNow)
   const enqueue = useAppStore((s) => s.enqueue)
   const openChannel = useAppStore((s) => s.openChannel)
+  const omitFromDiscovery = useAppStore((s) => s.omitFromDiscovery)
   const inQueue = useAppStore(
     (s) => s.nowPlaying?.id === video.id || s.queue.some((q) => q.id === video.id)
   )
 
   async function handleHide(): Promise<void> {
-    await callApi(() => window.myyoutube.videos.hide(video.id))
+    // Optimistic: drop from Discovery immediately so in-flight search cannot resurrect it.
+    omitFromDiscovery(video.id)
     onHide?.(video.id)
+    try {
+      await callApi(() => window.myyoutube.videos.hide(video.id))
+    } catch {
+      // Card is already gone from Discovery; History → Hidden still needs a successful hide.
+    }
   }
 
   function handleWatch(event?: MouseEvent): void {

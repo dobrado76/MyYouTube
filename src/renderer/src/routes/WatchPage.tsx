@@ -147,12 +147,14 @@ export function WatchPage(): JSX.Element {
 
   async function markWatched(): Promise<void> {
     if (!videoId) return
+    useAppStore.getState().omitFromDiscovery(videoId)
     await callApi(() => window.myyoutube.history.markWatched(videoId, true))
     setVideo((prev) => (prev ? { ...prev, watched: true, watchProgress: 1 } : prev))
   }
 
   async function hide(): Promise<void> {
     if (!videoId) return
+    useAppStore.getState().omitFromDiscovery(videoId)
     await callApi(() => window.myyoutube.videos.hide(videoId))
     setVideo((prev) => (prev ? { ...prev, hidden: true } : prev))
   }

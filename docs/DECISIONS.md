@@ -17,7 +17,7 @@ Locked choices for **this** repository. When [PRODUCT_SPEC.md](PRODUCT_SPEC.md) 
 | D11 | Recommendation scores store **components** for “Why?” explanations | Transparency |
 | D12 | Ranking weights in editable config (JSON/settings); UI exposure Phase 2+ | Deterministic, testable |
 | D13 | MVP **without** AI/embeddings; `VideoClassifier` interface reserved | Ship useful client first |
-| D14 | Aggressive **caching** + conservative quota; search only on explicit submit (debounced typing does not fire search) | Quota philosophy |
+| D14 | Aggressive **caching** + conservative quota; search only on explicit submit; each Search/Load-more/Keep-scanning spends **at most one** live `search.list` (**`maxResults=50`**); further fill only walks **already-cached** pages (free). Unwatched filtering is local — empty batches need an explicit Keep scanning | Quota philosophy — maximize rows per unit; never silently burn the ~100 searches/day |
 | D15 | Mock YouTube provider + fixtures required before heavy live API work | Dev without burning quota |
 | D16 | Themes via **CSS variables**; modes **light / dark / system / custom** with editable accent, palette, fonts, and font size | Appearance without library lock-in |
 | D17 | Windows-first packaging; other OS later if needed | Primary user platform |

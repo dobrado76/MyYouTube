@@ -16,6 +16,15 @@ export function useSortedVideoIds(): Set<string> {
   }, [nowPlayingId, queueIds])
 }
 
+/** Session-dismissed ids (hide / not-watching) kept off all Discovery surfaces. */
+export function useOmittedDiscoveryIds(): Set<string> {
+  const omittedKey = useAppStore((s) => s.omittedDiscoveryIds.join('\0'))
+  return useMemo(
+    () => new Set(omittedKey ? omittedKey.split('\0') : []),
+    [omittedKey]
+  )
+}
+
 export function sortedVideoIdList(): string[] {
   const { nowPlaying, queue } = useAppStore.getState()
   const ids = new Set<string>()
@@ -24,15 +33,26 @@ export function sortedVideoIdList(): string[] {
   return [...ids]
 }
 
-/** Filter discovery lists: drop Sorted; optionally drop watched. */
+export function isVideoWatched(video: Video, watchedThreshold: number): boolean {
+  if (video.watched) return true
+  if (video.watchProgress != null && video.watchProgress >= watchedThreshold) return true
+  return false
+}
+
+/** Filter discovery lists: drop Sorted / omitted / hidden; optionally drop watched. */
 export function filterDiscoveryVideos(
   items: Video[],
   sortedIds: Set<string>,
-  unwatchedOnly: boolean
+  unwatchedOnly: boolean,
+  opts?: { watchedThreshold?: number; omittedIds?: Set<string> }
 ): Video[] {
+  const threshold = opts?.watchedThreshold ?? 0.7
+  const omittedIds = opts?.omittedIds
   return items.filter((video) => {
+    if (omittedIds?.has(video.id)) return false
+    if (video.hidden) return false
     if (sortedIds.has(video.id)) return false
-    if (unwatchedOnly && video.watched) return false
+    if (unwatchedOnly && isVideoWatched(video, threshold)) return false
     return true
   })
 }

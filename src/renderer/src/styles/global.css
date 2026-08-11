@@ -654,6 +654,7 @@ button:disabled {
   /* Fixed footprint: thumb + 4 title lines + subline + actions (no flex filler). */
   height: 18.25rem;
   min-height: 0;
+  /* Clip media/title only — never clip card action buttons (Hide must stay clickable). */
   overflow: hidden;
   text-align: left;
   border: 1px solid var(--border);
@@ -787,9 +788,11 @@ button.linkish:hover {
   align-items: center;
   gap: 0.35rem;
   flex: 0 0 auto;
-  margin-top: 0;
+  margin-top: auto;
   padding-top: 0;
   min-height: 2rem;
+  position: relative;
+  z-index: 1;
 }
 
 .card-actions-main {

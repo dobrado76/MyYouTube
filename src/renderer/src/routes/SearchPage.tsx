@@ -1,16 +1,23 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent, type JSX } from 'react'
 import { useSearchParams } from 'react-router-dom'
+import { SEARCH_PAGE_SIZE } from '@shared/constants/search'
 import type { Video } from '@shared/schemas/video'
 import { SearchIcon } from '../components/icons'
 import { VideoCard } from '../components/VideoCard'
 import { callApi } from '../lib/api'
-import { filterDiscoveryVideos, useSortedVideoIds } from '../lib/discovery'
+import {
+  filterDiscoveryVideos,
+  useOmittedDiscoveryIds,
+  useSortedVideoIds
+} from '../lib/discovery'
 import { useAppStore } from '../store/appStore'
 
 export function SearchPage(): JSX.Element {
   const [params, setParams] = useSearchParams()
-  const { settings, recordSearch, unwatchedOnly, setUnwatchedOnly } = useAppStore()
+  const { settings, recordSearch, unwatchedOnly, setUnwatchedOnly, omitFromDiscovery } =
+    useAppStore()
   const sortedIds = useSortedVideoIds()
+  const omittedIds = useOmittedDiscoveryIds()
   const history = settings.searchHistory
   const lastFetchedQuery = useRef<string | null>(null)
   const inflightQuery = useRef<string | null>(null)
@@ -24,8 +31,12 @@ export function SearchPage(): JSX.Element {
   const [error, setError] = useState<string | null>(null)
 
   const visibleItems = useMemo(
-    () => filterDiscoveryVideos(items, sortedIds, unwatchedOnly),
-    [items, sortedIds, unwatchedOnly]
+    () =>
+      filterDiscoveryVideos(items, sortedIds, unwatchedOnly, {
+        watchedThreshold: settings.watchedThreshold,
+        omittedIds
+      }),
+    [items, sortedIds, unwatchedOnly, settings.watchedThreshold, omittedIds]
   )
 
   async function fetchSearch(q: string, force = false): Promise<void> {
@@ -42,10 +53,11 @@ export function SearchPage(): JSX.Element {
     setError(null)
     try {
       const page = await callApi(() =>
-        window.myyoutube.search.query({ query: trimmed, limit: 20 })
+        window.myyoutube.search.query({ query: trimmed, limit: SEARCH_PAGE_SIZE })
       )
       if (generation !== fetchGeneration.current) return
-      setItems(page.items)
+      const omitted = new Set(useAppStore.getState().omittedDiscoveryIds)
+      setItems(page.items.filter((v) => !omitted.has(v.id)))
       setNextPageToken(page.nextPageToken)
       await recordSearch(trimmed)
     } catch (err) {
@@ -77,6 +89,19 @@ export function SearchPage(): JSX.Element {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only re-run when URL q changes
   }, [params])
 
+  // Re-query when Unwatched only changes so main can over-fetch past watched hits.
+  const unwatchedOnlyReady = useRef(false)
+  useEffect(() => {
+    if (!unwatchedOnlyReady.current) {
+      unwatchedOnlyReady.current = true
+      return
+    }
+    const trimmed = query.trim()
+    if (!trimmed) return
+    void fetchSearch(trimmed, true)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: filter toggle only
+  }, [unwatchedOnly])
+
   async function runSearch(raw: string): Promise<void> {
     const q = raw.trim()
     if (!q) return
@@ -96,9 +121,18 @@ export function SearchPage(): JSX.Element {
     setLoading(true)
     try {
       const page = await callApi(() =>
-        window.myyoutube.search.query({ query, pageToken: nextPageToken, limit: 20 })
+        window.myyoutube.search.query({
+          query,
+          pageToken: nextPageToken,
+          limit: SEARCH_PAGE_SIZE
+        })
       )
-      setItems((prev) => [...prev, ...page.items])
+      const omitted = new Set(useAppStore.getState().omittedDiscoveryIds)
+      setItems((prev) => {
+        const seen = new Set(prev.map((v) => v.id))
+        const fresh = page.items.filter((v) => !omitted.has(v.id) && !seen.has(v.id))
+        return [...prev, ...fresh]
+      })
       setNextPageToken(page.nextPageToken)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Search failed')
@@ -108,6 +142,7 @@ export function SearchPage(): JSX.Element {
   }
 
   function hideVideo(videoId: string): void {
+    omitFromDiscovery(videoId)
     setItems((prev) => prev.filter((v) => v.id !== videoId))
   }
 
@@ -156,13 +191,18 @@ export function SearchPage(): JSX.Element {
       </form>
 
       {error ? <p className="error">{error}</p> : null}
-      {loading && items.length === 0 ? <p className="muted">Searching…</p> : null}
-      {!loading && query && items.length === 0 ? (
-        <p className="empty">No results for “{query}”.</p>
+      {loading && visibleItems.length === 0 ? (
+        <p className="muted">
+          {unwatchedOnly ? 'Searching for unwatched matches…' : 'Searching…'}
+        </p>
       ) : null}
-      {!loading && query && items.length > 0 && visibleItems.length === 0 ? (
+      {!loading && query && visibleItems.length === 0 ? (
         <p className="empty">
-          No matching results for “{query}” (queued or watched may be filtered out).
+          {nextPageToken
+            ? `No unwatched matches in this batch for “${query}”. Load more to keep scanning.`
+            : items.length === 0
+              ? `No results for “${query}”.`
+              : `No matching results for “${query}” (queued or watched may be filtered out).`}
         </p>
       ) : null}
       {!query && items.length === 0 && history.length === 0 ? (
@@ -177,8 +217,12 @@ export function SearchPage(): JSX.Element {
 
       {nextPageToken ? (
         <div className="load-more">
-          <button type="button" disabled={loading} onClick={() => void loadMore()}>
-            Load more
+          <button type="button" className="primary" disabled={loading} onClick={() => void loadMore()}>
+            {loading
+              ? 'Loading…'
+              : visibleItems.length === 0
+                ? 'Keep scanning'
+                : 'Load more'}
           </button>
         </div>
       ) : null}
