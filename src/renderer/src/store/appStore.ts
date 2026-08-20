@@ -38,6 +38,10 @@ type AppState = {
    * Keeps Search/Home/Channel from resurrecting a card via in-flight fetch races.
    */
   omittedDiscoveryIds: string[]
+  /** Bumped when collections change so the Saved tab can refresh. */
+  collectionsEpoch: number
+  /** Bumped when subscription/upload sync completes so Channel/Home reload cached pages. */
+  feedEpoch: number
   bootstrap: () => Promise<void>
   clearStartupRoute: () => void
   refreshAuth: () => Promise<void>
@@ -47,6 +51,8 @@ type AppState = {
   setUnwatchedOnly: (value: boolean) => void
   /** Drop a video from all Discovery lists for the rest of the session. */
   omitFromDiscovery: (videoId: string) => void
+  notifyCollectionsChanged: () => void
+  notifyFeedRefreshed: () => void
   openChannel: (channel: ActiveChannel) => void
   clearActiveChannel: () => void
   /** @deprecated prefer watchNow / clearNowPlaying */
@@ -154,6 +160,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   queue: [],
   playHistory: [],
   omittedDiscoveryIds: [],
+  collectionsEpoch: 0,
+  feedEpoch: 0,
 
   applyTheme: (settings) => {
     applyAppearance(settings.theme, settings.appearance)
@@ -248,6 +256,14 @@ export const useAppStore = create<AppState>((set, get) => ({
     const current = get().omittedDiscoveryIds
     if (current.includes(id)) return
     set({ omittedDiscoveryIds: [...current, id] })
+  },
+
+  notifyCollectionsChanged: () => {
+    set({ collectionsEpoch: get().collectionsEpoch + 1 })
+  },
+
+  notifyFeedRefreshed: () => {
+    set({ feedEpoch: get().feedEpoch + 1 })
   },
 
   openChannel: (channel) => {

@@ -15,28 +15,41 @@ import { useAppStore } from '../store/appStore'
 
 const SECTIONS = [
   { id: 'watched', label: 'Watched' },
-  { id: 'hidden', label: 'Hidden' }
+  { id: 'hidden', label: 'Hidden' },
+  { id: 'hiddenAll', label: 'All hidden' }
 ] as const
 
 type SectionId = (typeof SECTIONS)[number]['id']
 
-const SECTION_COPY: Record<SectionId, { title: string; blurb: string }> = {
+const SECTION_COPY: Record<SectionId, { title: string; blurb: string; empty: string }> = {
   watched: {
     title: 'Watched',
-    blurb: 'Videos marked watched, newest mark first. Restore to clear the watched flag.'
+    blurb: 'Videos marked watched, newest mark first. Restore to clear the watched flag.',
+    empty: 'Nothing here yet.'
   },
   hidden: {
     title: 'Hidden',
-    blurb: 'Videos you hid from the feed, newest hide first. Unhide returns them to Home.'
+    blurb:
+      'Hidden videos you have not watched — Unhide brings them back to Home / Search.',
+    empty: 'No unwatched hidden videos. Hide from a card to stash something for later.'
+  },
+  hiddenAll: {
+    title: 'All hidden',
+    blurb: 'Every hidden video, including ones you already watched.',
+    empty: 'Nothing hidden yet.'
   }
 }
 
 const SEARCH_DEBOUNCE_MS = 280
 
-export function HistoryPage(): JSX.Element {
+type Props = {
+  active: boolean
+}
+
+export function HistoryPage({ active }: Props): JSX.Element {
   const navigate = useNavigate()
   const { watchNow, enqueue, openChannel } = useAppStore()
-  const [section, setSection] = useState<SectionId>('watched')
+  const [section, setSection] = useState<SectionId>('hidden')
   const [draft, setDraft] = useState('')
   const [query, setQuery] = useState('')
   const [items, setItems] = useState<HistoryVideo[]>([])
@@ -44,7 +57,6 @@ export function HistoryPage(): JSX.Element {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  // Debounce filter text; reset when switching Watched / Hidden.
   useEffect(() => {
     const handle = window.setTimeout(() => setQuery(draft.trim()), SEARCH_DEBOUNCE_MS)
     return () => window.clearTimeout(handle)
@@ -54,19 +66,21 @@ export function HistoryPage(): JSX.Element {
     async (opts?: { reset?: boolean; cursor?: string | null }) => {
       setError(null)
       try {
-        const page = await callApi(() =>
-          section === 'watched'
-            ? window.myyoutube.history.listWatched({
-                cursor: opts?.cursor ?? null,
-                limit: 40,
-                query
-              })
-            : window.myyoutube.history.listHidden({
-                cursor: opts?.cursor ?? null,
-                limit: 40,
-                query
-              })
-        )
+        const page = await callApi(() => {
+          if (section === 'watched') {
+            return window.myyoutube.history.listWatched({
+              cursor: opts?.cursor ?? null,
+              limit: 40,
+              query
+            })
+          }
+          return window.myyoutube.history.listHidden({
+            cursor: opts?.cursor ?? null,
+            limit: 40,
+            query,
+            unwatchedOnly: section === 'hidden'
+          })
+        })
         setItems((prev) => (opts?.reset ? page.items : [...prev, ...page.items]))
         setCursor(page.nextCursor)
       } catch (err) {
@@ -78,12 +92,14 @@ export function HistoryPage(): JSX.Element {
     [section, query]
   )
 
+  // Keep-alive: reload when History is shown or section/filter changes.
   useEffect(() => {
+    if (!active) return
     setLoading(true)
     setItems([])
     setCursor(null)
     void loadVideos({ reset: true })
-  }, [loadVideos])
+  }, [active, loadVideos])
 
   function switchSection(next: SectionId): void {
     setSection(next)
@@ -117,7 +133,11 @@ export function HistoryPage(): JSX.Element {
 
   const copy = SECTION_COPY[section]
   const filterPlaceholder =
-    section === 'watched' ? 'Filter watched…' : 'Filter hidden…'
+    section === 'watched'
+      ? 'Filter watched…'
+      : section === 'hidden'
+        ? 'Filter hidden…'
+        : 'Filter all hidden…'
 
   return (
     <div className="settings-page history-page">
@@ -139,6 +159,7 @@ export function HistoryPage(): JSX.Element {
         <header className="settings-pane-header">
           <h1 title={copy.blurb}>{copy.title}</h1>
         </header>
+        <p className="muted history-section-blurb">{copy.blurb}</p>
 
         <div className="history-filter-bar">
           <SearchIcon />
@@ -173,8 +194,8 @@ export function HistoryPage(): JSX.Element {
           {!loading && items.length === 0 ? (
             <p className="muted">
               {query
-                ? `No matches for “${query}” in ${section === 'watched' ? 'Watched' : 'Hidden'}.`
-                : 'Nothing here yet.'}
+                ? `No matches for “${query}” in ${copy.title}.`
+                : copy.empty}
             </p>
           ) : null}
 
@@ -223,6 +244,7 @@ export function HistoryPage(): JSX.Element {
                         ? ` · ${formatDuration(video.durationSeconds)}`
                         : ''}
                       {video.markedAt ? ` · ${formatAge(video.markedAt)}` : ''}
+                      {video.watched ? ' · Watched' : ''}
                     </p>
                   </div>
                   <div className="history-row-actions">

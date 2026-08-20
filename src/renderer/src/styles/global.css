@@ -640,6 +640,13 @@ button:disabled {
   color: var(--ink-muted);
 }
 
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
 .video-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
@@ -652,7 +659,7 @@ button:disabled {
   flex-direction: column;
   gap: 0.45rem;
   /* Fixed footprint: thumb + 4 title lines + subline + actions (no flex filler). */
-  height: 18.25rem;
+  height: 18.75rem;
   min-height: 0;
   /* Clip media/title only — never clip card action buttons (Hide must stay clickable). */
   overflow: hidden;
@@ -808,6 +815,158 @@ button.linkish:hover {
 
 .card-action-hide {
   margin-left: auto;
+}
+
+.save-menu {
+  position: relative;
+  display: inline-flex;
+}
+
+.icon-btn.is-saved {
+  color: var(--accent);
+}
+
+.save-menu-panel {
+  position: fixed;
+  z-index: 80;
+  width: 240px;
+  max-height: min(22rem, calc(100vh - 1rem));
+  overflow: auto;
+  padding: 0.65rem 0.7rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow);
+}
+
+.save-menu-title {
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+  margin-bottom: 0.45rem;
+}
+
+.save-menu-status {
+  margin: 0.25rem 0 0.5rem;
+  font-size: 0.85rem;
+}
+
+.save-menu-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.save-menu-row {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.28rem 0.2rem;
+  cursor: pointer;
+  border-radius: 6px;
+}
+
+.save-menu-row:hover {
+  background: color-mix(in srgb, var(--bg) 70%, var(--bg-elevated));
+}
+
+.save-menu-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.9rem;
+}
+
+.save-menu-count {
+  color: var(--ink-muted);
+  font-size: 0.78rem;
+}
+
+.save-menu-new,
+.save-menu-create {
+  margin-top: 0.55rem;
+  width: 100%;
+}
+
+.save-menu-create {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.save-menu-create input {
+  flex: 1;
+  min-width: 0;
+}
+
+.saved-page .settings-nav-link {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  justify-content: space-between;
+}
+
+.saved-nav-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.saved-nav-count {
+  color: var(--ink-muted);
+  font-size: 0.78rem;
+  flex: 0 0 auto;
+}
+
+.saved-nav-new {
+  margin-top: 0.35rem;
+  color: var(--accent);
+}
+
+.saved-create-form,
+.saved-rename-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.35rem 0.15rem 0.5rem;
+}
+
+.saved-rename-form {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  width: 100%;
+}
+
+.saved-rename-form input {
+  flex: 1 1 12rem;
+  min-width: 0;
+}
+
+.saved-create-actions,
+.saved-pane-actions {
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.saved-pane-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.saved-blurb {
+  margin: -0.35rem 0 1rem;
 }
 
 .icon-btn {
@@ -1264,6 +1423,11 @@ button.linkish:hover {
 .appearance-preview strong {
   font-family: var(--font-display);
   color: var(--accent);
+}
+
+.history-section-blurb {
+  margin: -0.35rem 0 0.85rem;
+  font-size: 0.9rem;
 }
 
 .history-filter-bar {

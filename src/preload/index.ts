@@ -48,7 +48,8 @@ const api: MyYouTubeApi = {
       invoke(IpcChannels.channelsSetPreference, { channelId, preference }),
     unsubscribe: (channelId) => invoke(IpcChannels.channelsUnsubscribe, { channelId }),
     subscribe: (channelId) => invoke(IpcChannels.channelsSubscribe, { channelId }),
-    syncSubscriptions: () => invoke(IpcChannels.channelsSyncSubscriptions)
+    syncSubscriptions: () => invoke(IpcChannels.channelsSyncSubscriptions),
+    refreshUploads: (channelId) => invoke(IpcChannels.channelsRefreshUploads, { channelId })
   },
   videos: {
     get: (videoId) => invoke(IpcChannels.videosGet, { videoId }),
@@ -71,6 +72,18 @@ const api: MyYouTubeApi = {
   },
   search: {
     query: (input) => invoke(IpcChannels.searchQuery, input)
+  },
+  collections: {
+    list: () => invoke(IpcChannels.collectionsList),
+    create: (input) => invoke(IpcChannels.collectionsCreate, input),
+    rename: (input) => invoke(IpcChannels.collectionsRename, input),
+    delete: (collectionId) => invoke(IpcChannels.collectionsDelete, { collectionId }),
+    addVideo: (collectionId, videoId) =>
+      invoke(IpcChannels.collectionsAddVideo, { collectionId, videoId }),
+    removeVideo: (collectionId, videoId) =>
+      invoke(IpcChannels.collectionsRemoveVideo, { collectionId, videoId }),
+    listVideos: (input) => invoke(IpcChannels.collectionsListVideos, input),
+    listForVideo: (videoId) => invoke(IpcChannels.collectionsListForVideo, { videoId })
   },
   updates: {
     getVersion: () => invoke(IpcChannels.updatesGetVersion),

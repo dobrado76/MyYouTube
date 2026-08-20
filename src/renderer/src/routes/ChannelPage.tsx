@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type JSX } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type JSX } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import type { Video } from '@shared/schemas/video'
 import { VideoCard } from '../components/VideoCard'
@@ -9,6 +9,7 @@ import {
   useOmittedDiscoveryIds,
   useSortedVideoIds
 } from '../lib/discovery'
+import { mergeFeedPageItems } from '../lib/feedLoader'
 import { useActivated } from '../lib/sessionRoute'
 import { useAppStore } from '../store/appStore'
 
@@ -29,7 +30,11 @@ export function ChannelPage({ active }: Props): JSX.Element {
     setHideShorts,
     setUnwatchedOnly,
     omitFromDiscovery,
-    settings
+    settings,
+    auth,
+    signIn,
+    feedEpoch,
+    notifyFeedRefreshed
   } = useAppStore()
   const sortedIds = useSortedVideoIds()
   const omittedIds = useOmittedDiscoveryIds()
@@ -41,8 +46,10 @@ export function ChannelPage({ active }: Props): JSX.Element {
   const [cursor, setCursor] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [sessionKey, setSessionKey] = useState<string | null>(null)
+  const loadGeneration = useRef(0)
 
   useEffect(() => {
     if (!routeChannelId) return
@@ -53,6 +60,7 @@ export function ChannelPage({ active }: Props): JSX.Element {
   const load = useCallback(
     async (opts?: { reset?: boolean; cursor?: string | null }) => {
       if (!channelId) return
+      const generation = ++loadGeneration.current
       setError(null)
       try {
         const page = await callApi(() =>
@@ -68,23 +76,30 @@ export function ChannelPage({ active }: Props): JSX.Element {
             limit: 24
           })
         )
-        setItems((prev) => (opts?.reset ? page.items : [...prev, ...page.items]))
+        if (generation !== loadGeneration.current) return
+        const omitted = useAppStore.getState().omittedDiscoveryIds
+        setItems((prev) =>
+          mergeFeedPageItems(prev, page.items, Boolean(opts?.reset), omitted)
+        )
         setCursor(page.nextCursor)
         if (opts?.reset) {
           const fromPage = page.items[0]?.channelTitle
           if (fromPage) openChannel({ id: channelId, title: fromPage })
         }
       } catch (err) {
+        if (generation !== loadGeneration.current) return
         setError(err instanceof Error ? err.message : 'Failed to load channel')
       } finally {
-        setLoading(false)
+        if (generation === loadGeneration.current) setLoading(false)
       }
     },
     [channelId, hideShorts, unwatchedOnly, openChannel]
   )
 
   const nextSessionKey =
-    channelId != null ? `${channelId}|${hideShorts ? 1 : 0}|${unwatchedOnly ? 1 : 0}` : null
+    channelId != null
+      ? `${channelId}|${hideShorts ? 1 : 0}|${unwatchedOnly ? 1 : 0}|${feedEpoch}`
+      : null
 
   useEffect(() => {
     if (!activated) return
@@ -115,7 +130,7 @@ export function ChannelPage({ active }: Props): JSX.Element {
   )
 
   useEffect(() => {
-    if (!activated || loading || loadingMore || error) return
+    if (!activated || loading || loadingMore || refreshing || error) return
     if (visibleItems.length > 0 || !cursor) return
     let cancelled = false
     setLoadingMore(true)
@@ -126,14 +141,33 @@ export function ChannelPage({ active }: Props): JSX.Element {
       cancelled = true
       setLoadingMore(false)
     }
-  }, [activated, visibleItems.length, cursor, loading, loadingMore, error, load])
+  }, [activated, visibleItems.length, cursor, loading, loadingMore, refreshing, error, load])
+
+  async function refresh(): Promise<void> {
+    if (!channelId) return
+    setRefreshing(true)
+    setError(null)
+    try {
+      if (!auth?.signedIn) {
+        await signIn()
+      }
+      await callApi(() => window.myyoutube.channels.refreshUploads(channelId))
+      notifyFeedRefreshed()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Refresh failed')
+    } finally {
+      setRefreshing(false)
+    }
+  }
 
   function hideVideo(videoId: string): void {
+    loadGeneration.current += 1
     omitFromDiscovery(videoId)
     setItems((prev) => prev.filter((v) => v.id !== videoId))
   }
 
   async function markWatched(videoId: string): Promise<void> {
+    loadGeneration.current += 1
     omitFromDiscovery(videoId)
     setItems((prev) => prev.filter((v) => v.id !== videoId))
     await callApi(() => window.myyoutube.history.markWatched(videoId, true))
@@ -155,7 +189,7 @@ export function ChannelPage({ active }: Props): JSX.Element {
     )
   }
 
-  const busy = loading || loadingMore
+  const busy = loading || loadingMore || refreshing
   const trulyEmpty = !busy && visibleItems.length === 0 && !cursor
 
   return (
@@ -182,14 +216,26 @@ export function ChannelPage({ active }: Props): JSX.Element {
             </label>
           </div>
         </div>
-        <button type="button" className="ghost" onClick={closeChannel} title="Close channel">
-          Close
-        </button>
+        <div className="header-actions">
+          <button
+            type="button"
+            className="primary"
+            disabled={refreshing}
+            onClick={() => void refresh()}
+          >
+            {refreshing ? 'Refreshing…' : 'Refresh'}
+          </button>
+          <button type="button" className="ghost" onClick={closeChannel} title="Close channel">
+            Close
+          </button>
+        </div>
       </div>
 
       {error ? <p className="error">{error}</p> : null}
       {busy && visibleItems.length === 0 ? (
-        <p className="muted">{loadingMore ? 'Loading more…' : 'Loading channel…'}</p>
+        <p className="muted">
+          {refreshing ? 'Syncing uploads…' : loadingMore ? 'Loading more…' : 'Loading channel…'}
+        </p>
       ) : null}
 
       {trulyEmpty ? (

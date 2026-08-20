@@ -66,7 +66,15 @@ type Result<T> =
 
 ### `queue.*` / `collections.*`
 
-CRUD for watch queue and collections (Phase 3).
+| Method | Purpose |
+| ------ | ------- |
+| `collections.list` | Named local collections + video counts |
+| `collections.create` / `rename` / `delete` | Folder CRUD |
+| `collections.addVideo` / `removeVideo` | Membership |
+| `collections.listVideos` | Paginated videos in a collection |
+| `collections.listForVideo` | Which collections contain a video (Save picker) |
+
+Watch queue remains in-renderer + settings persistence (not these IPC methods yet).
 
 ### `recs.*`
 

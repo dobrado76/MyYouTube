@@ -27,7 +27,7 @@ const prefs: Array<{
 
 export function SubscriptionsPage(): JSX.Element {
   const navigate = useNavigate()
-  const { auth, signIn, openChannel } = useAppStore()
+  const { auth, signIn, openChannel, notifyFeedRefreshed } = useAppStore()
   const [channels, setChannels] = useState<Channel[]>([])
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -70,6 +70,7 @@ export function SubscriptionsPage(): JSX.Element {
     try {
       if (!auth?.signedIn) await signIn()
       await callApi(() => window.myyoutube.channels.syncSubscriptions())
+      notifyFeedRefreshed()
       await load()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Sync failed')

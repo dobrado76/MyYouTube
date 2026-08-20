@@ -4,6 +4,7 @@ import { ChannelPage } from '../routes/ChannelPage'
 import { HistoryPage } from '../routes/HistoryPage'
 import { HomePage } from '../routes/HomePage'
 import { QueuePage } from '../routes/QueuePage'
+import { SavedPage } from '../routes/SavedPage'
 import { SearchPage } from '../routes/SearchPage'
 import { SettingsPage } from '../routes/SettingsPage'
 import { SubscriptionsPage } from '../routes/SubscriptionsPage'
@@ -18,6 +19,7 @@ import {
   HomeIcon,
   PlayIcon,
   QueueIcon,
+  SavedIcon,
   SearchIcon,
   SettingsIcon,
   SubscriptionsIcon
@@ -59,6 +61,7 @@ export function Layout(): JSX.Element {
   const showSearch = viewPath.startsWith('/search')
   const showChannel = viewPath.startsWith('/channel')
   const showQueue = viewPath.startsWith('/queue')
+  const showSaved = viewPath.startsWith('/saved')
   const showHistory = viewPath.startsWith('/history')
   const showAccount = viewPath.startsWith('/account')
   const showSettings = viewPath.startsWith('/settings')
@@ -158,6 +161,16 @@ export function Layout(): JSX.Element {
                 }
               >
                 <HistoryIcon />
+              </NavLink>
+              <NavLink
+                to="/saved"
+                title="Saved"
+                aria-label="Saved"
+                className={({ isActive }) =>
+                  `tab-link${isActive || showSaved ? ' active' : ''}`
+                }
+              >
+                <SavedIcon />
               </NavLink>
               <NavLink
                 to="/queue"
@@ -271,8 +284,11 @@ export function Layout(): JSX.Element {
         <div className="tab-panel" hidden={!showQueue}>
           <QueuePage />
         </div>
+        <div className="tab-panel" hidden={!showSaved}>
+          <SavedPage active={showSaved} />
+        </div>
         <div className="tab-panel" hidden={!showHistory}>
-          <HistoryPage />
+          <HistoryPage active={showHistory} />
         </div>
         <div className="tab-panel" hidden={!showPrefs}>
           <SettingsPage />

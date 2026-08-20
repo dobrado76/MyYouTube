@@ -5,6 +5,7 @@ import * as channelRepo from '../db/repositories/channels'
 import * as videoRepo from '../db/repositories/videos'
 import { getSettings } from '../db/repositories/settings'
 import { getYouTubeProvider } from '../youtube/provider'
+import type { ProviderChannel, YouTubeProvider } from '../youtube/types'
 
 export async function queryFeed(input: FeedQueryInput): Promise<FeedPage> {
   const settings = getSettings()
@@ -68,35 +69,43 @@ export async function refreshSubscriptionsAndUploads(): Promise<{
       fetchedAt: new Date().toISOString()
     })
 
-    let pageToken: string | undefined
-    let pages = 0
-    do {
-      const page = await provider.getChannelUploads(channel.id, {
-        pageToken,
-        uploadsPlaylistId: channel.uploadsPlaylistId
-      })
-      for (const video of page.items) {
-        videoRepo.upsertVideo({
-          id: video.id,
-          channelId: video.channelId,
-          title: video.title,
-          description: video.description,
-          publishedAt: video.publishedAt,
-          durationSeconds: video.durationSeconds,
-          thumbnailUrl: video.thumbnailUrl,
-          viewCount: video.viewCount,
-          likeCount: video.likeCount,
-          isShort: video.isShort ?? inferShort(video.durationSeconds),
-          fetchedAt: new Date().toISOString()
-        })
-        videos += 1
-      }
-      pageToken = page.nextPageToken ?? undefined
-      pages += 1
-    } while (pageToken && pages < 3)
+    videos += await syncChannelUploads(channel, provider, { maxPages: 3 })
   }
 
   return { channels: subscriptions.length, videos }
+}
+
+/** Pull latest uploads for one channel from YouTube into the local library. */
+export async function refreshChannelUploads(channelId: string): Promise<{ videos: number }> {
+  const provider = getYouTubeProvider()
+  const local = channelRepo.getChannel(channelId)
+
+  let remote: ProviderChannel
+  try {
+    remote = await provider.getChannel(channelId)
+  } catch (error) {
+    if (!local) throw error
+    remote = {
+      id: local.id,
+      title: local.title,
+      description: local.description,
+      thumbnailUrl: local.thumbnailUrl,
+      uploadsPlaylistId: local.uploadsPlaylistId
+    }
+  }
+
+  channelRepo.upsertChannel({
+    id: remote.id,
+    title: remote.title,
+    description: remote.description,
+    thumbnailUrl: remote.thumbnailUrl,
+    uploadsPlaylistId: remote.uploadsPlaylistId,
+    subscribed: local?.subscribed ?? false,
+    fetchedAt: new Date().toISOString()
+  })
+
+  const videos = await syncChannelUploads(remote, provider, { maxPages: 5 })
+  return { videos }
 }
 
 export function resolveFeedDefaults(settings?: AppSettings): {
@@ -131,8 +140,33 @@ export async function subscribeChannel(channelId: string): Promise<
   })
 
   try {
-    const page = await provider.getChannelUploads(remote.id, {
-      uploadsPlaylistId: remote.uploadsPlaylistId
+    await syncChannelUploads(remote, provider, { maxPages: 3 })
+  } catch {
+    // Channel row is enough; uploads can arrive on the next full sync.
+  }
+
+  return channelRepo.getChannel(remote.id)
+}
+
+function inferShort(durationSeconds: number | null | undefined): boolean | null {
+  if (durationSeconds == null) return null
+  return durationSeconds <= 60
+}
+
+async function syncChannelUploads(
+  channel: ProviderChannel,
+  provider: YouTubeProvider,
+  opts?: { maxPages?: number }
+): Promise<number> {
+  let videos = 0
+  let pageToken: string | undefined
+  let pages = 0
+  const maxPages = opts?.maxPages ?? 3
+
+  do {
+    const page = await provider.getChannelUploads(channel.id, {
+      pageToken,
+      uploadsPlaylistId: channel.uploadsPlaylistId
     })
     for (const video of page.items) {
       videoRepo.upsertVideo({
@@ -148,15 +182,11 @@ export async function subscribeChannel(channelId: string): Promise<
         isShort: video.isShort ?? inferShort(video.durationSeconds),
         fetchedAt: new Date().toISOString()
       })
+      videos += 1
     }
-  } catch {
-    // Channel row is enough; uploads can arrive on the next full sync.
-  }
+    pageToken = page.nextPageToken ?? undefined
+    pages += 1
+  } while (pageToken && pages < maxPages)
 
-  return channelRepo.getChannel(remote.id)
-}
-
-function inferShort(durationSeconds: number | null | undefined): boolean | null {
-  if (durationSeconds == null) return null
-  return durationSeconds <= 60
+  return videos
 }

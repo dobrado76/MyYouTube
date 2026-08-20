@@ -22,6 +22,7 @@ export const IpcChannels = {
   channelsUnsubscribe: 'channels.unsubscribe',
   channelsSubscribe: 'channels.subscribe',
   channelsSyncSubscriptions: 'channels.syncSubscriptions',
+  channelsRefreshUploads: 'channels.refreshUploads',
 
   videosGet: 'videos.get',
   videosHide: 'videos.hide',
@@ -37,6 +38,15 @@ export const IpcChannels = {
   channelsListBlocked: 'channels.listBlocked',
 
   searchQuery: 'search.query',
+
+  collectionsList: 'collections.list',
+  collectionsCreate: 'collections.create',
+  collectionsRename: 'collections.rename',
+  collectionsDelete: 'collections.delete',
+  collectionsAddVideo: 'collections.addVideo',
+  collectionsRemoveVideo: 'collections.removeVideo',
+  collectionsListVideos: 'collections.listVideos',
+  collectionsListForVideo: 'collections.listForVideo',
 
   updatesGetVersion: 'updates.getVersion',
   updatesPickFolder: 'updates.pickFolder',

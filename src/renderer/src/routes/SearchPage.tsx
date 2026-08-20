@@ -142,6 +142,7 @@ export function SearchPage(): JSX.Element {
   }
 
   function hideVideo(videoId: string): void {
+    fetchGeneration.current += 1
     omitFromDiscovery(videoId)
     setItems((prev) => prev.filter((v) => v.id !== videoId))
   }

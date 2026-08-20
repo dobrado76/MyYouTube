@@ -3,6 +3,7 @@ const ALLOWED = new Set([
   '/subscriptions',
   '/search',
   '/queue',
+  '/saved',
   '/history',
   '/account',
   '/settings',

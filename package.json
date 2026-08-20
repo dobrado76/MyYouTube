@@ -1,7 +1,7 @@
 {
   "name": "myyoutube",
   "productName": "MyYouTube",
-  "version": "0.1.7",
+  "version": "0.1.10",
   "description": "Personal YouTube client with local filtering and transparent ranking",
   "main": "./out/main/index.js",
   "author": "MeaningfulnessMediaGroup",

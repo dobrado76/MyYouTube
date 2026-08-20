@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type JSX } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type JSX } from 'react'
 import type { Video } from '@shared/schemas/video'
 import { VideoCard } from '../components/VideoCard'
 import { callApi } from '../lib/api'
@@ -8,6 +8,7 @@ import {
   useOmittedDiscoveryIds,
   useSortedVideoIds
 } from '../lib/discovery'
+import { mergeFeedPageItems } from '../lib/feedLoader'
 import { useActivated } from '../lib/sessionRoute'
 import { useAppStore } from '../store/appStore'
 
@@ -25,7 +26,8 @@ export function HomePage({ active }: Props): JSX.Element {
     setUnwatchedOnly,
     signIn,
     omitFromDiscovery,
-    settings
+    settings,
+    notifyFeedRefreshed
   } = useAppStore()
   const sortedIds = useSortedVideoIds()
   const omittedIds = useOmittedDiscoveryIds()
@@ -35,9 +37,11 @@ export function HomePage({ active }: Props): JSX.Element {
   const [loadingMore, setLoadingMore] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const loadGeneration = useRef(0)
 
   const load = useCallback(
     async (opts?: { reset?: boolean; cursor?: string | null }) => {
+      const generation = ++loadGeneration.current
       setError(null)
       try {
         const page = await callApi(() =>
@@ -52,12 +56,17 @@ export function HomePage({ active }: Props): JSX.Element {
             limit: 24
           })
         )
-        setItems((prev) => (opts?.reset ? page.items : [...prev, ...page.items]))
+        if (generation !== loadGeneration.current) return
+        const omitted = useAppStore.getState().omittedDiscoveryIds
+        setItems((prev) =>
+          mergeFeedPageItems(prev, page.items, Boolean(opts?.reset), omitted)
+        )
         setCursor(page.nextCursor)
       } catch (err) {
+        if (generation !== loadGeneration.current) return
         setError(err instanceof Error ? err.message : 'Failed to load feed')
       } finally {
-        setLoading(false)
+        if (generation === loadGeneration.current) setLoading(false)
       }
     },
     [hideShorts, unwatchedOnly]
@@ -101,6 +110,7 @@ export function HomePage({ active }: Props): JSX.Element {
         await signIn()
       }
       await callApi(() => window.myyoutube.feed.refresh())
+      notifyFeedRefreshed()
       setLoading(true)
       await load({ reset: true })
     } catch (err) {
@@ -111,11 +121,13 @@ export function HomePage({ active }: Props): JSX.Element {
   }
 
   function hideVideo(videoId: string): void {
+    loadGeneration.current += 1
     omitFromDiscovery(videoId)
     setItems((prev) => prev.filter((v) => v.id !== videoId))
   }
 
   async function markWatched(videoId: string): Promise<void> {
+    loadGeneration.current += 1
     omitFromDiscovery(videoId)
     setItems((prev) => prev.filter((v) => v.id !== videoId))
     await callApi(() => window.myyoutube.history.markWatched(videoId, true))

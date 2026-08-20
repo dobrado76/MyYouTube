@@ -45,6 +45,7 @@ export default function App(): JSX.Element {
         <Route path="search" element={null} />
         <Route path="channel/:channelId" element={null} />
         <Route path="queue" element={null} />
+        <Route path="saved" element={null} />
         <Route path="history" element={null} />
         <Route path="account" element={null} />
         <Route path="settings" element={null} />

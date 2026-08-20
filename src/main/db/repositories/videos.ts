@@ -231,10 +231,14 @@ export function listHiddenVideos(opts: {
   cursor: string | null
   limit: number
   query?: string
+  unwatchedOnly?: boolean
 }): HistoryListPage {
   const db = getDb()
   const where = ['v.hidden = 1']
   const params: Record<string, string | number> = { limit: opts.limit }
+  if (opts.unwatchedOnly) {
+    where.push('(wh.completed IS NULL OR wh.completed = 0)')
+  }
   appendHistorySearchClause(where, params, opts.query)
   if (opts.cursor) {
     where.push(

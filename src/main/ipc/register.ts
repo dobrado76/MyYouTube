@@ -3,9 +3,14 @@ import { ZodError } from 'zod'
 import { IpcChannels } from '@shared/ipc/channels'
 import { err, ok, type Result } from '@shared/result'
 import {
+  CollectionIdInputSchema,
+  CollectionVideoInputSchema,
+  CreateCollectionInputSchema,
   FeedQueryInputSchema,
   HistoryListInputSchema,
+  ListCollectionVideosInputSchema,
   MarkWatchedInputSchema,
+  RenameCollectionInputSchema,
   SearchQueryInputSchema,
   ChannelIdInputSchema,
   SetChannelPreferenceInputSchema,
@@ -17,6 +22,7 @@ import {
 } from '@shared/schemas'
 import * as auth from '../auth/service'
 import * as channelRepo from '../db/repositories/channels'
+import * as collectionRepo from '../db/repositories/collections'
 import * as historyRepo from '../db/repositories/history'
 import * as settingsRepo from '../db/repositories/settings'
 import * as videoRepo from '../db/repositories/videos'
@@ -167,6 +173,13 @@ export function registerIpcHandlers(): void {
     IpcChannels.channelsSyncSubscriptions,
     wrap(() => feed.refreshSubscriptionsAndUploads())
   )
+  ipcMain.handle(
+    IpcChannels.channelsRefreshUploads,
+    wrap((raw) => {
+      const input = ChannelIdInputSchema.parse(raw)
+      return feed.refreshChannelUploads(input.channelId)
+    })
+  )
 
   ipcMain.handle(
     IpcChannels.videosGet,
@@ -260,7 +273,8 @@ export function registerIpcHandlers(): void {
       return videoRepo.listHiddenVideos({
         cursor: input.cursor ?? null,
         limit: input.limit,
-        query: input.query
+        query: input.query,
+        unwatchedOnly: input.unwatchedOnly
       })
     })
   )
@@ -270,6 +284,64 @@ export function registerIpcHandlers(): void {
     wrap((raw) => {
       const input = SearchQueryInputSchema.parse(raw)
       return search.searchVideos(input)
+    })
+  )
+
+  ipcMain.handle(
+    IpcChannels.collectionsList,
+    wrap(() => collectionRepo.listCollections())
+  )
+  ipcMain.handle(
+    IpcChannels.collectionsCreate,
+    wrap((raw) => {
+      const input = CreateCollectionInputSchema.parse(raw)
+      return collectionRepo.createCollection(input.name)
+    })
+  )
+  ipcMain.handle(
+    IpcChannels.collectionsRename,
+    wrap((raw) => {
+      const input = RenameCollectionInputSchema.parse(raw)
+      return collectionRepo.renameCollection(input.collectionId, input.name)
+    })
+  )
+  ipcMain.handle(
+    IpcChannels.collectionsDelete,
+    wrap((raw) => {
+      const { collectionId } = CollectionIdInputSchema.parse(raw)
+      return collectionRepo.deleteCollection(collectionId)
+    })
+  )
+  ipcMain.handle(
+    IpcChannels.collectionsAddVideo,
+    wrap((raw) => {
+      const input = CollectionVideoInputSchema.parse(raw)
+      return collectionRepo.addVideoToCollection(input.collectionId, input.videoId)
+    })
+  )
+  ipcMain.handle(
+    IpcChannels.collectionsRemoveVideo,
+    wrap((raw) => {
+      const input = CollectionVideoInputSchema.parse(raw)
+      return collectionRepo.removeVideoFromCollection(input.collectionId, input.videoId)
+    })
+  )
+  ipcMain.handle(
+    IpcChannels.collectionsListVideos,
+    wrap((raw) => {
+      const input = ListCollectionVideosInputSchema.parse(raw)
+      return collectionRepo.listCollectionVideos({
+        collectionId: input.collectionId,
+        cursor: input.cursor ?? null,
+        limit: input.limit
+      })
+    })
+  )
+  ipcMain.handle(
+    IpcChannels.collectionsListForVideo,
+    wrap((raw) => {
+      const { videoId } = VideoIdInputSchema.parse(raw)
+      return collectionRepo.listVideoMembership(videoId)
     })
   )
 

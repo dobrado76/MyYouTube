@@ -34,9 +34,10 @@ Locked choices for **this** repository. When [PRODUCT_SPEC.md](PRODUCT_SPEC.md) 
 | D28 | Persist **nowPlaying** + **playQueue** + resume progress in settings; flush player position on window close so Play restores exact spot after restart | Restart-safe Watch/Queue continuity |
 | D29 | Player overlay **Previous / Next** (Play + mini player) walks `playHistory` / up-next; **Next** marks watched when progress **≥ `watchedThreshold`** (Settings → Feed; default 0.7) and drops the item from the session (no playHistory); below that, Previous still works; ended always marks watched | Queue navigation without leaving the player; one threshold for “watched” |
 | D30 | Packaged app serves the renderer over **`http://127.0.0.1:<ephemeral>`** (not `file://`) so the YouTube IFrame Player gets a valid http origin | Avoids YouTube Error 153 in release builds |
-| D31 | **History** tab: Watched / Hidden only (sorted by mark/hide time; Restore/Unhide). **Settings → Filters**: blocked channels + keyword filters (case-insensitive title/description substrings); both apply to Home + Search | History = archive; Settings = ongoing filters |
+| D31 | **History** tab: **Watched** / **Hidden** (unwatched only — recovery via Unhide) / **All hidden**; sorted by mark/hide time. Reloads when the tab is shown. **Settings → Filters**: blocked channels + keyword filters | History = archive + unhide recovery; Settings = ongoing filters |
 | D32 | Clicking a card **channel** opens a keep-alive **Channel** tab (one at a time; opening another replaces it) with Home-like filters / pagination over that channel’s local videos; **activeChannel** persists in settings across restart until Closed | Channel deep-dive without losing Home/Search state; restart-safe tab |
 | D33 | Persist **lastRoute** (path + search) in settings; restore via hash **before** `ready`/Layout. Home/Channel fetch only after that tab is shown. Settings patches (queue, route, filters) are **serialized** so concurrent writes cannot wipe playQueue | Restart opens the same tab; restart-safe queue |
+| D34 | **Saved** tab = local **collections** (named folders e.g. Programming / Music). Bookmark on cards opens Save-to… picker (multi-collection + create). Not YouTube playlists; no sync in MVP (see deferred) | Spec §33; rewatch library without burning playlist API |
 
 ## Deferred (explicitly not locked yet)
 

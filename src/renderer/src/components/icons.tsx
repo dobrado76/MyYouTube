@@ -202,3 +202,29 @@ export function SubscribeIcon(): JSX.Element {
     </svg>
   )
 }
+
+export function BookmarkIcon({ filled = false }: { filled?: boolean }): JSX.Element {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      {filled ? (
+        <path fill="currentColor" d="M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2z" />
+      ) : (
+        <path
+          fill="currentColor"
+          d="M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2zm0 15-5-2.18L7 18V5h10v13z"
+        />
+      )}
+    </svg>
+  )
+}
+
+export function SavedIcon(): JSX.Element {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path
+        fill="currentColor"
+        d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H8V4h12v12zm-7-1 4.5-5.5L16 11l-3 3.75L11.5 13 9 16h4z"
+      />
+    </svg>
+  )
+}

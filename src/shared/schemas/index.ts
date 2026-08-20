@@ -1,6 +1,7 @@
 export * from './auth'
 export * from './credentials'
 export * from './channel'
+export * from './collection'
 export * from './feed'
 export * from './history'
 export * from './historyList'

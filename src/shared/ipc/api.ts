@@ -2,6 +2,14 @@ import type { Result } from '../result'
 import type { AuthStatus } from '../schemas/auth'
 import type { CredentialsStatus, SaveCredentialsInput } from '../schemas/credentials'
 import type { Channel, ChannelPreference } from '../schemas/channel'
+import type {
+  Collection,
+  CollectionVideosPage,
+  CreateCollectionInput,
+  ListCollectionVideosInput,
+  RenameCollectionInput,
+  VideoCollectionMembership
+} from '../schemas/collection'
 import type { FeedPage, FeedQueryInput } from '../schemas/feed'
 import type { WatchHistoryEntry } from '../schemas/history'
 import type { HistoryListInput, HistoryListPage } from '../schemas/historyList'
@@ -53,6 +61,7 @@ export type MyYouTubeApi = {
     /** Add to MyYouTube feed (local; YouTube subscription unchanged). */
     subscribe: (channelId: string) => Promise<Result<Channel>>
     syncSubscriptions: () => Promise<Result<{ channels: number; videos: number }>>
+    refreshUploads: (channelId: string) => Promise<Result<{ videos: number }>>
   }
   videos: {
     get: (videoId: string) => Promise<Result<VideoDetail>>
@@ -73,6 +82,16 @@ export type MyYouTubeApi = {
   }
   search: {
     query: (input: SearchQueryInput) => Promise<Result<SearchPage>>
+  }
+  collections: {
+    list: () => Promise<Result<Collection[]>>
+    create: (input: CreateCollectionInput) => Promise<Result<Collection>>
+    rename: (input: RenameCollectionInput) => Promise<Result<Collection>>
+    delete: (collectionId: string) => Promise<Result<{ deleted: true }>>
+    addVideo: (collectionId: string, videoId: string) => Promise<Result<Collection>>
+    removeVideo: (collectionId: string, videoId: string) => Promise<Result<Collection>>
+    listVideos: (input: ListCollectionVideosInput) => Promise<Result<CollectionVideosPage>>
+    listForVideo: (videoId: string) => Promise<Result<VideoCollectionMembership>>
   }
   updates: {
     getVersion: () => Promise<Result<string>>

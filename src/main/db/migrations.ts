@@ -92,5 +92,36 @@ export const migrations: Migration[] = [
       UPDATE videos SET hidden_at = COALESCE(fetched_at, datetime('now')) WHERE hidden = 1 AND hidden_at IS NULL;
       CREATE INDEX IF NOT EXISTS idx_videos_hidden_at ON videos(hidden_at);
     `
+  },
+  {
+    id: 4,
+    name: 'collections',
+    sql: `
+      CREATE TABLE IF NOT EXISTS collections (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        sort_order INTEGER NOT NULL DEFAULT 0
+      );
+
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_collections_name_ci
+        ON collections(name COLLATE NOCASE);
+
+      CREATE TABLE IF NOT EXISTS collection_videos (
+        collection_id TEXT NOT NULL,
+        video_id TEXT NOT NULL,
+        added_at TEXT NOT NULL,
+        sort_order INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (collection_id, video_id),
+        FOREIGN KEY(collection_id) REFERENCES collections(id) ON DELETE CASCADE,
+        FOREIGN KEY(video_id) REFERENCES videos(id)
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_collection_videos_video
+        ON collection_videos(video_id);
+      CREATE INDEX IF NOT EXISTS idx_collection_videos_added
+        ON collection_videos(collection_id, added_at DESC);
+    `
   }
 ]
