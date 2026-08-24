@@ -95,6 +95,8 @@ export function queryFeedVideos(opts: {
   blockedKeywords?: string[]
   /** Watch-later / now-playing ids — keep these off Home (Queue tab only). */
   excludeVideoIds?: string[]
+  /** When unwatchedOnly, also exclude partial progress at or above this threshold. */
+  watchedThreshold?: number
 }): { items: Video[]; nextCursor: string | null } {
   const db = getDb()
   const channelOnly = Boolean(opts.filters.channelId)
@@ -120,6 +122,9 @@ export function queryFeedVideos(opts: {
   }
   if (opts.filters.unwatchedOnly) {
     where.push('(wh.completed IS NULL OR wh.completed = 0)')
+    const threshold = opts.watchedThreshold ?? 0.7
+    where.push('(wh.watch_progress IS NULL OR wh.watch_progress < @watchThreshold)')
+    params.watchThreshold = threshold
   }
   if (opts.filters.minDurationSeconds != null) {
     where.push('(v.duration_seconds IS NULL OR v.duration_seconds >= @minDuration)')

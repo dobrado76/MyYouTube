@@ -5,11 +5,16 @@ import { VideoCard } from '../components/VideoCard'
 import { callApi } from '../lib/api'
 import {
   filterDiscoveryVideos,
+  countVisibleDiscoveryVideos,
   sortedVideoIdList,
   useOmittedDiscoveryIds,
   useSortedVideoIds
 } from '../lib/discovery'
-import { mergeFeedPageItems } from '../lib/feedLoader'
+import {
+  INITIAL_FEED_PAGINATION_STATE,
+  applyFeedPage,
+  type FeedPaginationState
+} from '../lib/feedLoader'
 import { useActivated } from '../lib/sessionRoute'
 import { useAppStore } from '../store/appStore'
 
@@ -49,13 +54,20 @@ export function ChannelPage({ active }: Props): JSX.Element {
   const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [sessionKey, setSessionKey] = useState<string | null>(null)
+  const [filterExhausted, setFilterExhausted] = useState(false)
   const loadGeneration = useRef(0)
+  const paginationRef = useRef<FeedPaginationState>(INITIAL_FEED_PAGINATION_STATE)
 
   useEffect(() => {
     if (!routeChannelId) return
     if (activeChannel?.id === routeChannelId) return
     openChannel({ id: routeChannelId, title: routeChannelId })
   }, [routeChannelId, activeChannel?.id, openChannel])
+
+  useEffect(() => {
+    if (activated) return
+    loadGeneration.current += 1
+  }, [activated])
 
   const load = useCallback(
     async (opts?: { reset?: boolean; cursor?: string | null }) => {
@@ -77,11 +89,30 @@ export function ChannelPage({ active }: Props): JSX.Element {
           })
         )
         if (generation !== loadGeneration.current) return
+
         const omitted = useAppStore.getState().omittedDiscoveryIds
-        setItems((prev) =>
-          mergeFeedPageItems(prev, page.items, Boolean(opts?.reset), omitted)
-        )
-        setCursor(page.nextCursor)
+        const startPagination = opts?.reset
+          ? INITIAL_FEED_PAGINATION_STATE
+          : paginationRef.current
+
+        let applied!: ReturnType<typeof applyFeedPage>
+        setItems((prev) => {
+          applied = applyFeedPage(
+            opts?.reset ? [] : prev,
+            page.items,
+            Boolean(opts?.reset),
+            omitted,
+            startPagination,
+            page.nextCursor,
+            countVisibleDiscoveryVideos
+          )
+          return applied.mergedItems
+        })
+
+        paginationRef.current = applied.pagination
+        setFilterExhausted(applied.pagination.exhausted && applied.visibleCount === 0)
+        setCursor(applied.nextCursor)
+
         if (opts?.reset) {
           const fromPage = page.items[0]?.channelTitle
           if (fromPage) openChannel({ id: channelId, title: fromPage })
@@ -110,16 +141,16 @@ export function ChannelPage({ active }: Props): JSX.Element {
       setLoading(false)
       return
     }
-    // Keep-alive: returning to this tab with the same channel + filters keeps scroll/items.
     if (sessionKey === nextSessionKey) return
     setSessionKey(nextSessionKey)
+    paginationRef.current = INITIAL_FEED_PAGINATION_STATE
+    setFilterExhausted(false)
     setLoading(true)
     setItems([])
     setCursor(null)
     void load({ reset: true })
   }, [activated, channelId, nextSessionKey, sessionKey, load])
 
-  // Discovery ≠ Sorted: queued / now-playing never appear on Channel (same as Home).
   const visibleItems = useMemo(
     () =>
       filterDiscoveryVideos(items, sortedIds, unwatchedOnly, {
@@ -129,19 +160,15 @@ export function ChannelPage({ active }: Props): JSX.Element {
     [items, sortedIds, unwatchedOnly, settings.watchedThreshold, omittedIds]
   )
 
-  useEffect(() => {
-    if (!activated || loading || loadingMore || refreshing || error) return
-    if (visibleItems.length > 0 || !cursor) return
-    let cancelled = false
+  async function loadMore(): Promise<void> {
+    if (!cursor || loadingMore || filterExhausted) return
     setLoadingMore(true)
-    void load({ cursor }).finally(() => {
-      if (!cancelled) setLoadingMore(false)
-    })
-    return () => {
-      cancelled = true
+    try {
+      await load({ cursor })
+    } finally {
       setLoadingMore(false)
     }
-  }, [activated, visibleItems.length, cursor, loading, loadingMore, refreshing, error, load])
+  }
 
   async function refresh(): Promise<void> {
     if (!channelId) return
@@ -174,6 +201,7 @@ export function ChannelPage({ active }: Props): JSX.Element {
   }
 
   function closeChannel(): void {
+    loadGeneration.current += 1
     clearActiveChannel()
     setItems([])
     setCursor(null)
@@ -190,7 +218,8 @@ export function ChannelPage({ active }: Props): JSX.Element {
   }
 
   const busy = loading || loadingMore || refreshing
-  const trulyEmpty = !busy && visibleItems.length === 0 && !cursor
+  const trulyEmpty = !busy && visibleItems.length === 0 && !cursor && !filterExhausted
+  const canLoadMore = Boolean(cursor) && !filterExhausted && !busy
 
   return (
     <section>
@@ -238,6 +267,21 @@ export function ChannelPage({ active }: Props): JSX.Element {
         </p>
       ) : null}
 
+      {!busy && visibleItems.length === 0 && canLoadMore ? (
+        <p className="muted">
+          Nothing visible on this page matches your filters. Load more or adjust filters above.
+        </p>
+      ) : null}
+
+      {filterExhausted && visibleItems.length === 0 && !busy ? (
+        <p className="empty">
+          No more videos match your filters in the local library
+          {hideShorts ? ' (Shorts are hidden)' : ''}
+          {unwatchedOnly ? ' (watched and queued are hidden)' : ''}. Try turning off filters or
+          use Refresh to sync more uploads.
+        </p>
+      ) : null}
+
       {trulyEmpty ? (
         <p className="empty">
           No videos for this channel in the local library
@@ -257,16 +301,9 @@ export function ChannelPage({ active }: Props): JSX.Element {
         ))}
       </div>
 
-      {cursor && visibleItems.length > 0 ? (
+      {canLoadMore ? (
         <div className="load-more">
-          <button
-            type="button"
-            disabled={loadingMore}
-            onClick={() => {
-              setLoadingMore(true)
-              void load({ cursor }).finally(() => setLoadingMore(false))
-            }}
-          >
+          <button type="button" disabled={loadingMore} onClick={() => void loadMore()}>
             {loadingMore ? 'Loading…' : 'Load more'}
           </button>
         </div>

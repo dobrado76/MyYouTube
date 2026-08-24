@@ -30,7 +30,8 @@ export async function queryFeed(input: FeedQueryInput): Promise<FeedPage> {
     cursor: input.cursor ?? null,
     limit: input.limit,
     blockedKeywords: settings.blockedKeywords,
-    excludeVideoIds
+    excludeVideoIds,
+    watchedThreshold: settings.watchedThreshold
   })
 
   return {

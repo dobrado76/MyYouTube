@@ -56,13 +56,35 @@ function resolveAppIcon(): string {
 let mainWindow: BrowserWindow | null = null
 let rendererServer: RendererServer | null = null
 let allowClose = false
+let closeAttempts = 0
 let flushTimeout: ReturnType<typeof setTimeout> | null = null
 
-function finishClose(): void {
+function forceDestroyWindow(): void {
   allowClose = true
   if (flushTimeout) {
     clearTimeout(flushTimeout)
     flushTimeout = null
+  }
+  const win = mainWindow
+  mainWindow = null
+  if (win && !win.isDestroyed()) {
+    win.removeAllListeners('close')
+    win.destroy()
+  }
+}
+
+function finishClose(force = false): void {
+  allowClose = true
+  if (flushTimeout) {
+    clearTimeout(flushTimeout)
+    flushTimeout = null
+  }
+  if (force) {
+    forceDestroyWindow()
+    if (BrowserWindow.getAllWindows().length === 0) {
+      app.quit()
+    }
+    return
   }
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.close()
@@ -72,6 +94,7 @@ function finishClose(): void {
 function createWindow(): void {
   const saved = loadWindowState()
   allowClose = false
+  closeAttempts = 0
 
   mainWindow = new BrowserWindow({
     width: saved.width,
@@ -105,9 +128,15 @@ function createWindow(): void {
   mainWindow.on('close', (event) => {
     if (allowClose || !mainWindow || mainWindow.isDestroyed()) return
     event.preventDefault()
+    closeAttempts += 1
+    // Second close while flush is pending — renderer is likely hung; force quit.
+    if (closeAttempts > 1) {
+      finishClose(true)
+      return
+    }
     mainWindow.webContents.send(IpcChannels.appFlushBeforeQuit)
     if (flushTimeout) clearTimeout(flushTimeout)
-    flushTimeout = setTimeout(() => finishClose(), 2500)
+    flushTimeout = setTimeout(() => finishClose(true), 800)
   })
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
@@ -169,6 +198,7 @@ app.on('window-all-closed', () => {
 })
 
 app.on('before-quit', () => {
+  allowClose = true
   rendererServer?.stop()
   rendererServer = null
   closeDatabase()

@@ -56,3 +56,19 @@ export function filterDiscoveryVideos(
     return true
   })
 }
+
+/** Same as filterDiscoveryVideos but reads live session state from the store. */
+export function filterDiscoveryVideosFromStore(items: Video[]): Video[] {
+  const state = useAppStore.getState()
+  const sortedIds = new Set<string>()
+  if (state.nowPlaying) sortedIds.add(state.nowPlaying.id)
+  for (const item of state.queue) sortedIds.add(item.id)
+  return filterDiscoveryVideos(items, sortedIds, state.unwatchedOnly, {
+    watchedThreshold: state.settings.watchedThreshold,
+    omittedIds: new Set(state.omittedDiscoveryIds)
+  })
+}
+
+export function countVisibleDiscoveryVideos(items: Video[]): number {
+  return filterDiscoveryVideosFromStore(items).length
+}
