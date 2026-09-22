@@ -53,11 +53,26 @@ export function SearchPage(): JSX.Element {
     setError(null)
     try {
       const page = await callApi(() =>
-        window.myyoutube.search.query({ query: trimmed, limit: SEARCH_PAGE_SIZE })
+        window.myyoutube.search.query({
+          query: trimmed,
+          limit: SEARCH_PAGE_SIZE,
+          unwatchedOnly
+        })
       )
-      if (generation !== fetchGeneration.current) return
+      if (generation !== fetchGeneration.current) {
+        // Hide used to bump generation and poison this guard — clear so retry works.
+        if (lastFetchedQuery.current === trimmed) lastFetchedQuery.current = null
+        return
+      }
       const omitted = new Set(useAppStore.getState().omittedDiscoveryIds)
-      setItems(page.items.filter((v) => !omitted.has(v.id)))
+      const seen = new Set<string>()
+      setItems(
+        page.items.filter((v) => {
+          if (omitted.has(v.id) || seen.has(v.id)) return false
+          seen.add(v.id)
+          return true
+        })
+      )
       setNextPageToken(page.nextPageToken)
       await recordSearch(trimmed)
     } catch (err) {
@@ -118,15 +133,18 @@ export function SearchPage(): JSX.Element {
 
   async function loadMore(): Promise<void> {
     if (!nextPageToken || !query) return
+    const generation = fetchGeneration.current
     setLoading(true)
     try {
       const page = await callApi(() =>
         window.myyoutube.search.query({
           query,
           pageToken: nextPageToken,
-          limit: SEARCH_PAGE_SIZE
+          limit: SEARCH_PAGE_SIZE,
+          unwatchedOnly
         })
       )
+      if (generation !== fetchGeneration.current) return
       const omitted = new Set(useAppStore.getState().omittedDiscoveryIds)
       setItems((prev) => {
         const seen = new Set(prev.map((v) => v.id))
@@ -135,14 +153,24 @@ export function SearchPage(): JSX.Element {
       })
       setNextPageToken(page.nextPageToken)
     } catch (err) {
+      if (generation !== fetchGeneration.current) return
       setError(err instanceof Error ? err.message : 'Search failed')
     } finally {
-      setLoading(false)
+      if (generation === fetchGeneration.current) setLoading(false)
     }
   }
 
+
+  // When Unwatched only filters out a whole page, keep scanning automatically.
+  useEffect(() => {
+    if (loading || !query || !nextPageToken) return
+    if (visibleItems.length > 0) return
+    void loadMore()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- deliberate: only when the visible grid is empty
+  }, [loading, query, nextPageToken, visibleItems.length])
+
   function hideVideo(videoId: string): void {
-    fetchGeneration.current += 1
+    // Do not bump fetchGeneration — that aborts in-flight search and blocks re-fetch.
     omitFromDiscovery(videoId)
     setItems((prev) => prev.filter((v) => v.id !== videoId))
   }

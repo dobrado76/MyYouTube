@@ -160,6 +160,32 @@ export function ChannelPage({ active }: Props): JSX.Element {
     [items, sortedIds, unwatchedOnly, settings.watchedThreshold, omittedIds]
   )
 
+
+  // After triage clears the visible page, keep fetching until something shows or the feed ends.
+  useEffect(() => {
+    if (!activated || loading || loadingMore || refreshing || error) return
+    if (visibleItems.length > 0 || !cursor || filterExhausted) return
+    let cancelled = false
+    setLoadingMore(true)
+    void load({ cursor }).finally(() => {
+      if (!cancelled) setLoadingMore(false)
+    })
+    return () => {
+      cancelled = true
+      setLoadingMore(false)
+    }
+  }, [
+    activated,
+    visibleItems.length,
+    cursor,
+    filterExhausted,
+    loading,
+    loadingMore,
+    refreshing,
+    error,
+    load
+  ])
+
   async function loadMore(): Promise<void> {
     if (!cursor || loadingMore || filterExhausted) return
     setLoadingMore(true)
@@ -188,13 +214,12 @@ export function ChannelPage({ active }: Props): JSX.Element {
   }
 
   function hideVideo(videoId: string): void {
-    loadGeneration.current += 1
+    // Do not bump loadGeneration — that aborts in-flight loads and sticks loading.
     omitFromDiscovery(videoId)
     setItems((prev) => prev.filter((v) => v.id !== videoId))
   }
 
   async function markWatched(videoId: string): Promise<void> {
-    loadGeneration.current += 1
     omitFromDiscovery(videoId)
     setItems((prev) => prev.filter((v) => v.id !== videoId))
     await callApi(() => window.myyoutube.history.markWatched(videoId, true))

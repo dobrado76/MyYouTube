@@ -133,7 +133,10 @@ export function VideoCard({
             <button
               type="button"
               className="icon-btn"
-              onClick={() => onMarkWatched(video.id)}
+              onClick={() => {
+                omitFromDiscovery(video.id)
+                onMarkWatched(video.id)
+              }}
               title="Not watching"
               aria-label="Not watching"
             >

@@ -33,7 +33,7 @@ export async function searchVideos(input: SearchQueryInput): Promise<SearchPage>
     if (wouldBeLive && liveCalls >= MAX_LIVE_PAGES_PER_ACTION) break
     if (!wouldBeLive && liveCalls > 0 && cachedFills >= MAX_CACHED_FILL_PAGES) break
 
-    const page = await searchOnePage(input.query, pageToken, limit, cached)
+    const page = await searchOnePage(input.query, pageToken, limit, cached, input.unwatchedOnly)
     if (wouldBeLive) liveCalls += 1
     else if (liveCalls > 0) cachedFills += 1
 
@@ -48,8 +48,17 @@ export async function searchVideos(input: SearchQueryInput): Promise<SearchPage>
     pageToken = nextPageToken
   }
 
+  // Dedupe across cached+live page fills (overlapping ids after unwatched filtering).
+  const seen = new Set<string>()
+  const items: Video[] = []
+  for (const video of collected) {
+    if (seen.has(video.id)) continue
+    seen.add(video.id)
+    items.push(video)
+  }
+
   return {
-    items: collected,
+    items,
     nextPageToken,
     query: input.query
   }
@@ -59,11 +68,12 @@ async function searchOnePage(
   query: string,
   pageToken: string | null,
   limit: number,
-  cached: ReturnType<typeof searchCache.getCachedSearch>
+  cached: ReturnType<typeof searchCache.getCachedSearch>,
+  unwatchedOnly?: boolean
 ): Promise<SearchPage> {
   if (cached) {
     return {
-      items: hydrateVideos(cached.videoIds),
+      items: hydrateVideos(cached.videoIds, unwatchedOnly),
       nextPageToken: cached.nextPageToken,
       query
     }
@@ -104,16 +114,17 @@ async function searchOnePage(
   searchCache.putCachedSearch(query, pageToken, limit, videoIds, page.nextPageToken)
 
   return {
-    items: hydrateVideos(videoIds),
+    items: hydrateVideos(videoIds, unwatchedOnly),
     nextPageToken: page.nextPageToken,
     query
   }
 }
 
-function hydrateVideos(videoIds: string[]): Video[] {
+function hydrateVideos(videoIds: string[], unwatchedOnlyOverride?: boolean): Video[] {
   const settings = getSettings()
   const keywords = settings.blockedKeywords
   const threshold = settings.watchedThreshold
+  const unwatchedOnly = unwatchedOnlyOverride ?? settings.unwatchedOnly
   return videoIds
     .map((id) => videoRepo.getVideo(id))
     .filter((v): v is Video => {
@@ -121,7 +132,7 @@ function hydrateVideos(videoIds: string[]): Video[] {
       const channel = channelRepo.getChannel(v.channelId)
       if (channel?.blocked) return false
       if (videoMatchesBlockedKeyword(v, keywords)) return false
-      if (settings.unwatchedOnly) {
+      if (unwatchedOnly) {
         if (v.watched) return false
         if (v.watchProgress != null && v.watchProgress >= threshold) return false
       }

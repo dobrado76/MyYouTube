@@ -32,7 +32,8 @@ export function HomePage({ active }: Props): JSX.Element {
     signIn,
     omitFromDiscovery,
     settings,
-    notifyFeedRefreshed
+    notifyFeedRefreshed,
+    feedEpoch
   } = useAppStore()
   const sortedIds = useSortedVideoIds()
   const omittedIds = useOmittedDiscoveryIds()
@@ -108,7 +109,8 @@ export function HomePage({ active }: Props): JSX.Element {
     setFilterExhausted(false)
     setLoading(true)
     void load({ reset: true })
-  }, [load, activated])
+    // feedEpoch: reload after Subscriptions/Channel sync (keep-alive otherwise stays stale).
+  }, [load, activated, feedEpoch])
 
   const visibleItems = useMemo(
     () =>
@@ -118,6 +120,31 @@ export function HomePage({ active }: Props): JSX.Element {
       }),
     [items, sortedIds, unwatchedOnly, settings.watchedThreshold, omittedIds]
   )
+
+  // After triage clears the visible page, keep fetching until something shows or the feed ends.
+  useEffect(() => {
+    if (!activated || loading || loadingMore || refreshing || error) return
+    if (visibleItems.length > 0 || !cursor || filterExhausted) return
+    let cancelled = false
+    setLoadingMore(true)
+    void load({ cursor }).finally(() => {
+      if (!cancelled) setLoadingMore(false)
+    })
+    return () => {
+      cancelled = true
+      setLoadingMore(false)
+    }
+  }, [
+    activated,
+    visibleItems.length,
+    cursor,
+    filterExhausted,
+    loading,
+    loadingMore,
+    refreshing,
+    error,
+    load
+  ])
 
   async function loadMore(): Promise<void> {
     if (!cursor || loadingMore || filterExhausted) return
@@ -137,11 +164,8 @@ export function HomePage({ active }: Props): JSX.Element {
         await signIn()
       }
       await callApi(() => window.myyoutube.feed.refresh())
+      // Bumps feedEpoch → effect reloads; do not also bump loadGeneration here.
       notifyFeedRefreshed()
-      paginationRef.current = INITIAL_FEED_PAGINATION_STATE
-      setFilterExhausted(false)
-      setLoading(true)
-      await load({ reset: true })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Refresh failed')
     } finally {
@@ -150,13 +174,12 @@ export function HomePage({ active }: Props): JSX.Element {
   }
 
   function hideVideo(videoId: string): void {
-    loadGeneration.current += 1
+    // Do not bump loadGeneration — that aborts in-flight Refresh/load and sticks loading.
     omitFromDiscovery(videoId)
     setItems((prev) => prev.filter((v) => v.id !== videoId))
   }
 
   async function markWatched(videoId: string): Promise<void> {
-    loadGeneration.current += 1
     omitFromDiscovery(videoId)
     setItems((prev) => prev.filter((v) => v.id !== videoId))
     await callApi(() => window.myyoutube.history.markWatched(videoId, true))
