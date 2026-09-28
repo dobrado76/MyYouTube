@@ -38,6 +38,7 @@ Locked choices for **this** repository. When [PRODUCT_SPEC.md](PRODUCT_SPEC.md) 
 | D32 | Clicking a card **channel** opens a keep-alive **Channel** tab (one at a time; opening another replaces it) with Home-like filters / pagination over that channel’s local videos; **activeChannel** persists in settings across restart until Closed | Channel deep-dive without losing Home/Search state; restart-safe tab |
 | D33 | Persist **lastRoute** (path + search) in settings; restore via hash **before** `ready`/Layout. Home/Channel fetch only after that tab is shown. Settings patches (queue, route, filters) are **serialized** so concurrent writes cannot wipe playQueue | Restart opens the same tab; restart-safe queue |
 | D34 | **Saved** tab = local **collections** (named folders e.g. Programming / Music). Bookmark on cards opens Save-to… picker (multi-collection + create). Not YouTube playlists; no sync in MVP (see deferred) | Spec §33; rewatch library without burning playlist API |
+| D35 | Preferred quality: inject into youtube.com embed via `webFrameMain` and **lock** `setPlaybackQualityRange(target,target)` so ABR cannot fall to medium; also write `yt-player-quality` storage. Parent `setPlaybackQuality` is a no-op. Log: `userData/youtube-quality.log` | Official IFrame only; match site-quality mechanism |
 
 ## Deferred (explicitly not locked yet)
 

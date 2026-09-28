@@ -45,6 +45,10 @@ export type MyYouTubeApi = {
     onFlushBeforeQuit: (handler: () => void | Promise<void>) => () => void
     flushDone: () => Promise<Result<{ ok: true }>>
   }
+  player: {
+    reapplyEmbedQuality: () => Promise<Result<{ preferred: string; lastInject: string }>>
+    embedQualityStatus: () => Promise<Result<{ preferred: string; lastInject: string }>>
+  }
   feed: {
     query: (input?: Partial<FeedQueryInput>) => Promise<Result<FeedPage>>
     refresh: () => Promise<Result<{ channels: number; videos: number }>>

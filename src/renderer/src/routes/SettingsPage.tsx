@@ -741,7 +741,11 @@ export function SettingsPage(): JSX.Element {
                   <option value="small">240p</option>
                 </select>
               </label>
-              <p className="settings-note">YouTube may still auto-adjust quality during playback.</p>
+              <p className="settings-note">
+                Preferred quality is written into the YouTube embed’s own player storage (same idea as
+                the quality menu on youtube.com). The embed can still briefly ramp; if it stays low,
+                check Hardware acceleration is on.
+              </p>
             </div>
           </div>
         ) : null}

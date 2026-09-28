@@ -37,6 +37,10 @@ const api: MyYouTubeApi = {
     },
     flushDone: () => invoke(IpcChannels.appFlushDone)
   },
+  player: {
+    reapplyEmbedQuality: () => invoke(IpcChannels.playerReapplyEmbedQuality),
+    embedQualityStatus: () => invoke(IpcChannels.playerEmbedQualityStatus)
+  },
   feed: {
     query: (input) => invoke(IpcChannels.feedQuery, input ?? {}),
     refresh: () => invoke(IpcChannels.feedRefresh)

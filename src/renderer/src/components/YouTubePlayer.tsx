@@ -57,8 +57,10 @@ export function YouTubePlayer({
   const elementId = `yt-player-${reactId}`
   const hostRef = useRef<HTMLDivElement | null>(null)
   const playerRef = useRef<YtPlayer | null>(null)
+  const preferredQualityRef = useRef(player.preferredQuality)
   const onEndedRef = useRef(onEnded)
   const onProgressRef = useRef(onProgress)
+  const onActualQualityRef = useRef(onActualQuality)
   const progressKeyRef = useRef(progressKey)
   const [error, setError] = useState<string | null>(null)
   const [showReplay, setShowReplay] = useState(finished)
@@ -69,7 +71,9 @@ export function YouTubePlayer({
 
   onEndedRef.current = onEnded
   onProgressRef.current = onProgress
+  onActualQualityRef.current = onActualQuality
   progressKeyRef.current = progressKey
+  preferredQualityRef.current = player.preferredQuality
 
   // Lock resume/finished policy per opened video (ignore mid-playback "watched" flips).
   useEffect(() => {
@@ -86,7 +90,6 @@ export function YouTubePlayer({
     let cancelled = false
     let created: YtPlayer | null = null
     let saveTimer: ReturnType<typeof setInterval> | null = null
-    // Capture per-instance identity — never write this player's time under another video's key.
     const effectProgressKey = progressKey
     const effectResume = resumeProgress
     const effectDuration = durationSeconds
@@ -109,15 +112,12 @@ export function YouTubePlayer({
     async function saveProgress(yt: YtPlayer, completed?: boolean): Promise<void> {
       const progress = readProgress(yt)
       if (progress == null) return
-      // Avoid clobbering a finished entry with a near-zero read during teardown.
       if (!completed && progress < 0.005) return
       const done = completed ?? progress >= RESUME_MAX
       try {
         await callApi(() =>
           window.myyoutube.history.upsertProgress(effectProgressKey, progress, done)
         )
-        // Never push into the live session after this instance was cancelled/replaced —
-        // Next/Previous already advanced nowPlaying; a late callback would seek the next video.
         if (cancelled) return
         if (progressKeyRef.current !== effectProgressKey) return
         onProgressRef.current?.(progress, done)
@@ -143,10 +143,17 @@ export function YouTubePlayer({
             ? window.location.origin
             : undefined
 
+        // Natural frame size — quality preference is applied inside the youtube.com
+        // iframe via Electron (yt-player-quality). Do not CSS-scale a fake large box;
+        // that made ABR re-sample the visual size and settle on medium.
+        const rect = hostRef.current.getBoundingClientRect()
+        const width = Math.max(640, Math.round(rect.width) || 1280)
+        const height = Math.max(360, Math.round(rect.height) || 720)
+
         created = new YT.Player(elementId, {
           videoId,
-          width: '100%',
-          height: '100%',
+          width,
+          height,
           playerVars: {
             rel: 0,
             modestbranding: 1,
@@ -161,8 +168,10 @@ export function YouTubePlayer({
           events: {
             onReady: (event) => {
               if (cancelled || progressKeyRef.current !== effectProgressKey) return
-              applyQuality(event.target, player.preferredQuality)
+              applyQuality(event.target, preferredQualityRef.current)
               applyCaptions(event.target, player.captionsEnabled, player.captionLanguage)
+              // Push preference into the youtube.com iframe (parent API is ignored).
+              void window.myyoutube.player.reapplyEmbedQuality().catch(() => undefined)
 
               if (openedFinished && !replayRef.current) {
                 try {
@@ -171,7 +180,7 @@ export function YouTubePlayer({
                   // ignore
                 }
                 setShowReplay(true)
-                onActualQuality?.(safeQuality(event.target))
+                onActualQualityRef.current?.(safeQuality(event.target))
                 return
               }
 
@@ -194,12 +203,15 @@ export function YouTubePlayer({
                   // Browser/autoplay policy may block; user can press play.
                 }
               }
-              onActualQuality?.(safeQuality(event.target))
+              onActualQualityRef.current?.(safeQuality(event.target))
             },
             onStateChange: (event) => {
               if (cancelled || progressKeyRef.current !== effectProgressKey) return
               if (event.data === YT_PLAYING) {
                 setShowReplay(false)
+                applyQuality(event.target, preferredQualityRef.current)
+                void window.myyoutube.player.reapplyEmbedQuality().catch(() => undefined)
+                onActualQualityRef.current?.(safeQuality(event.target))
                 if (!saveTimer) {
                   saveTimer = setInterval(() => {
                     if (cancelled || progressKeyRef.current !== effectProgressKey) return
@@ -227,7 +239,9 @@ export function YouTubePlayer({
               applyCaptions(event.target, player.captionsEnabled, player.captionLanguage)
             },
             onPlaybackQualityChange: (event) => {
-              onActualQuality?.(event.data)
+              onActualQualityRef.current?.(event.data)
+              if (cancelled || progressKeyRef.current !== effectProgressKey) return
+              applyQuality(event.target, preferredQualityRef.current)
             },
             onError: () => {
               if (!cancelled) setError('Player error — try Open on YouTube.')
@@ -244,7 +258,6 @@ export function YouTubePlayer({
 
     return () => {
       cancelled = true
-      // Prevent destroy/teardown from advancing the queue or poisoning the next item's resume.
       onEndedRef.current = undefined
       onProgressRef.current = undefined
       unregisterFlusher()
@@ -252,7 +265,6 @@ export function YouTubePlayer({
         clearInterval(saveTimer)
         saveTimer = null
       }
-      // History-only flush (onProgress is cleared / cancelled above).
       void flushProgress()
       try {
         created?.destroy()
@@ -263,7 +275,6 @@ export function YouTubePlayer({
         playerRef.current = null
       }
     }
-    // Recreate when identity / caption bootstrap prefs change (not when progress updates).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [videoId, progressKey, forcePlay, player.autoplay, player.captionLanguage, player.captionsEnabled])
 
@@ -271,8 +282,9 @@ export function YouTubePlayer({
     const yt = playerRef.current
     if (!yt) return
     applyQuality(yt, player.preferredQuality)
-    onActualQuality?.(safeQuality(yt))
-  }, [player.preferredQuality, onActualQuality])
+    void window.myyoutube.player.reapplyEmbedQuality().catch(() => undefined)
+    onActualQualityRef.current?.(safeQuality(yt))
+  }, [player.preferredQuality])
 
   useEffect(() => {
     const yt = playerRef.current
@@ -357,7 +369,7 @@ function applyQuality(yt: YtPlayer, quality: PlayerQuality): void {
     if (quality === 'auto') return
     yt.setPlaybackQuality(quality)
   } catch {
-    // YouTube may ignore quality requests.
+    // Parent-frame API is a no-op on modern embeds; Electron injects yt-player-quality.
   }
 }
 

@@ -17,6 +17,10 @@ import { getSettings } from './db/repositories/settings'
 import { RendererServer } from './rendererServer'
 import { IpcChannels } from '../shared/ipc/channels'
 import { resolveUserDataPath } from './userDataPath'
+import {
+  installYoutubeEmbedQualityHooks,
+  setPreferredEmbedQuality
+} from './youtubeEmbedQuality'
 
 function loadEnvFile(): void {
   const candidates = [join(process.cwd(), '.env.local'), join(process.cwd(), '.env')]
@@ -144,6 +148,8 @@ function createWindow(): void {
     return { action: 'deny' }
   })
 
+  installYoutubeEmbedQualityHooks(mainWindow.webContents)
+
   void loadRenderer(mainWindow)
 }
 
@@ -170,6 +176,7 @@ app.whenReady().then(() => {
   initDatabase(userDataPath)
   // Keep boot preference file aligned with settings (applied on next launch).
   writeHardwareAccelerationPreference(getSettings().hardwareAcceleration)
+  setPreferredEmbedQuality(getSettings().player.preferredQuality)
   initTokenStore(userDataPath)
   initCredentialsStore(userDataPath)
   initWindowStateStore(userDataPath)

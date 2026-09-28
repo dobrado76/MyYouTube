@@ -28,6 +28,8 @@ export type YtPlayer = {
   getPlaybackQuality: () => string
   setPlaybackQuality: (quality: string) => void
   getAvailableQualityLevels: () => string[]
+  /** Sets the iframe element’s width/height — YouTube ABR keys off these pixels. */
+  setSize: (width: number, height: number) => void
   setOption: (module: string, option: string, value: unknown) => void
   getOption: (module: string, option: string) => unknown
   getOptions: (module?: string) => string[]

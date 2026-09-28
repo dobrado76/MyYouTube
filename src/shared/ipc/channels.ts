@@ -13,6 +13,8 @@ export const IpcChannels = {
   appRelaunch: 'app.relaunch',
   appFlushBeforeQuit: 'app.flushBeforeQuit',
   appFlushDone: 'app.flushDone',
+  playerReapplyEmbedQuality: 'player.reapplyEmbedQuality',
+  playerEmbedQualityStatus: 'player.embedQualityStatus',
 
   feedQuery: 'feed.query',
   feedRefresh: 'feed.refresh',

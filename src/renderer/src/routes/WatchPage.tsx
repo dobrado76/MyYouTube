@@ -17,6 +17,45 @@ const QUALITY_OPTIONS: Array<{ value: PlayerQuality; label: string }> = [
   { value: 'small', label: '240p' }
 ]
 
+/** Rank for comparing preferred vs actual embed rung (higher = better). */
+const QUALITY_RANK: Record<string, number> = {
+  small: 1,
+  medium: 2,
+  large: 3,
+  hd720: 4,
+  hd1080: 5,
+  highres: 6
+}
+
+function qualityMet(preferred: PlayerQuality, actual: string): boolean {
+  if (preferred === 'auto') return true
+  const want = QUALITY_RANK[preferred]
+  const got = QUALITY_RANK[actual]
+  if (want == null || got == null) return preferred === actual
+  return got >= want
+}
+
+function formatQualityLabel(quality: string): string {
+  switch (quality) {
+    case 'highres':
+      return 'highest'
+    case 'hd1080':
+      return '1080p'
+    case 'hd720':
+      return '720p'
+    case 'large':
+      return '480p'
+    case 'medium':
+      return '360p'
+    case 'small':
+      return '240p'
+    case 'tiny':
+      return '144p'
+    default:
+      return quality || 'auto'
+  }
+}
+
 const RESUME_RESET = 0.02
 
 const CAPTION_LANGS: Array<{ value: string; label: string }> = [
@@ -314,7 +353,17 @@ export function WatchPage(): JSX.Element {
           </select>
         </label>
 
-        <span className="muted player-quality-hint">Playing: {actualQuality || 'auto'}</span>
+        <span
+          className="muted player-quality-hint"
+          title="Playing is what YouTube’s embed actually chose. Highest is your preference — embeds used to ignore it; we now write it into the youtube.com player storage."
+        >
+          Playing: {formatQualityLabel(actualQuality)}
+          {player.preferredQuality !== 'auto' &&
+          actualQuality &&
+          !qualityMet(player.preferredQuality, actualQuality)
+            ? ` (wanted ${formatQualityLabel(player.preferredQuality)})`
+            : ''}
+        </span>
       </div>
 
       <div>

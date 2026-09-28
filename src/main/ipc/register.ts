@@ -34,6 +34,7 @@ import {
   relaunchApp
 } from '../hardwareAcceleration'
 import { resolvePlayableId } from '../youtube/fixtures'
+import { setPreferredEmbedQuality, reapplyEmbedQuality, getEmbedQualityInjectStatus } from '../youtubeEmbedQuality'
 
 type Handler = (...args: unknown[]) => Promise<unknown> | unknown
 
@@ -95,9 +96,13 @@ export function registerIpcHandlers(): void {
   )
   ipcMain.handle(
     IpcChannels.settingsPatch,
-    wrap((raw) => {
+    wrap(async (raw) => {
       const patch = AppSettingsPatchSchema.parse(raw)
-      return settingsRepo.patchSettings(patch)
+      const next = await settingsRepo.patchSettings(patch)
+      if (patch.player?.preferredQuality !== undefined) {
+        setPreferredEmbedQuality(next.player.preferredQuality)
+      }
+      return next
     })
   )
   ipcMain.handle(
@@ -114,6 +119,15 @@ export function registerIpcHandlers(): void {
       setImmediate(() => relaunchApp())
       return { relaunching: true as const }
     })
+  )
+
+  ipcMain.handle(
+    IpcChannels.playerReapplyEmbedQuality,
+    wrap(async () => reapplyEmbedQuality())
+  )
+  ipcMain.handle(
+    IpcChannels.playerEmbedQualityStatus,
+    wrap(() => getEmbedQualityInjectStatus())
   )
 
   ipcMain.handle(
