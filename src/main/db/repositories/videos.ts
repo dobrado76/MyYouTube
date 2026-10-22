@@ -99,8 +99,82 @@ export function queryFeedVideos(opts: {
   watchedThreshold?: number
 }): { items: Video[]; nextCursor: string | null } {
   const db = getDb()
+  const { where, params } = buildFeedWhere(opts)
+  params.limit = opts.limit
+
+  const sql = `
+    SELECT v.*, c.title AS channel_title,
+      CASE WHEN wh.completed = 1 THEN 1 ELSE 0 END AS watched,
+      wh.watch_progress AS watch_progress
+    FROM videos v
+    LEFT JOIN channels c ON c.id = v.channel_id
+    LEFT JOIN watch_history wh ON wh.video_id = v.id
+    WHERE ${where.join(' AND ')}
+    ORDER BY v.published_at DESC, v.id DESC
+    LIMIT @limit
+  `
+
+  const rows = db.prepare(sql).all(params) as VideoRow[]
+  const items = rows.map(mapVideo)
+  const last = items[items.length - 1]
+  const nextCursor =
+    items.length === opts.limit && last?.publishedAt
+      ? `${last.publishedAt}|${last.id}`
+      : null
+
+  return { items, nextCursor }
+}
+
+/** Count videos matching Home/Channel filters (no cursor / limit). */
+export function countFeedVideos(opts: {
+  filters: FeedFilters
+  blockedKeywords?: string[]
+  excludeVideoIds?: string[]
+  watchedThreshold?: number
+}): number {
+  const db = getDb()
+  const { where, params } = buildFeedWhere({ ...opts, cursor: null })
+  const row = db
+    .prepare(
+      `
+    SELECT COUNT(*) AS n
+    FROM videos v
+    LEFT JOIN channels c ON c.id = v.channel_id
+    LEFT JOIN watch_history wh ON wh.video_id = v.id
+    WHERE ${where.join(' AND ')}
+  `
+    )
+    .get(params) as { n: number }
+  return row.n
+}
+
+/** All non-hidden videos on subscribed unmuted channels (ignores Hide Shorts / Unwatched). */
+export function countSubscribedLibraryVideos(): number {
+  const row = getDb()
+    .prepare(
+      `
+    SELECT COUNT(*) AS n
+    FROM videos v
+    INNER JOIN channels c ON c.id = v.channel_id
+    WHERE v.hidden = 0
+      AND c.subscribed = 1
+      AND c.blocked = 0
+      AND c.muted = 0
+      AND c.hidden = 0
+  `
+    )
+    .get() as { n: number }
+  return row.n
+}
+
+function buildFeedWhere(opts: {
+  filters: FeedFilters
+  cursor?: string | null
+  blockedKeywords?: string[]
+  excludeVideoIds?: string[]
+  watchedThreshold?: number
+}): { where: string[]; params: Record<string, string | number> } {
   const channelOnly = Boolean(opts.filters.channelId)
-  // Single-channel view: show that channel's library videos even if not currently subscribed.
   const where: string[] = channelOnly
     ? ['v.hidden = 0', 'v.channel_id = @channelId']
     : [
@@ -110,9 +184,7 @@ export function queryFeedVideos(opts: {
         'c.muted = 0',
         'c.hidden = 0'
       ]
-  const params: Record<string, string | number> = {
-    limit: opts.limit
-  }
+  const params: Record<string, string | number> = {}
   if (channelOnly && opts.filters.channelId) {
     params.channelId = opts.filters.channelId
   }
@@ -146,27 +218,7 @@ export function queryFeedVideos(opts: {
     params.cursorId = id ?? ''
   }
 
-  const sql = `
-    SELECT v.*, c.title AS channel_title,
-      CASE WHEN wh.completed = 1 THEN 1 ELSE 0 END AS watched,
-      wh.watch_progress AS watch_progress
-    FROM videos v
-    LEFT JOIN channels c ON c.id = v.channel_id
-    LEFT JOIN watch_history wh ON wh.video_id = v.id
-    WHERE ${where.join(' AND ')}
-    ORDER BY v.published_at DESC, v.id DESC
-    LIMIT @limit
-  `
-
-  const rows = db.prepare(sql).all(params) as VideoRow[]
-  const items = rows.map(mapVideo)
-  const last = items[items.length - 1]
-  const nextCursor =
-    items.length === opts.limit && last?.publishedAt
-      ? `${last.publishedAt}|${last.id}`
-      : null
-
-  return { items, nextCursor }
+  return { where, params }
 }
 
 function mapHistoryVideo(row: VideoRow): HistoryVideo {

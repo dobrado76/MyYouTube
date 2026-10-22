@@ -7,6 +7,12 @@ import { getSettings } from '../db/repositories/settings'
 import { getYouTubeProvider } from '../youtube/provider'
 import type { ProviderChannel, YouTubeProvider } from '../youtube/types'
 
+/** Newest uploads per channel on full Subscriptions sync (playlist page size is 50). */
+const BULK_SYNC_UPLOAD_PAGES = 2
+/** Deeper pull when refreshing a single channel tab. */
+const CHANNEL_REFRESH_UPLOAD_PAGES = 5
+const SUBSCRIBE_UPLOAD_PAGES = 3
+
 export async function queryFeed(input: FeedQueryInput): Promise<FeedPage> {
   const settings = getSettings()
   const filters = FeedFiltersSchema.parse({
@@ -25,55 +31,188 @@ export async function queryFeed(input: FeedQueryInput): Promise<FeedPage> {
     ])
   ]
 
-  const { items, nextCursor } = videoRepo.queryFeedVideos({
+  const queryOpts = {
     filters,
     cursor: input.cursor ?? null,
     limit: input.limit,
     blockedKeywords: settings.blockedKeywords,
     excludeVideoIds,
     watchedThreshold: settings.watchedThreshold
+  }
+
+  const { items, nextCursor } = videoRepo.queryFeedVideos(queryOpts)
+  const matchingTotal = videoRepo.countFeedVideos({
+    filters,
+    blockedKeywords: settings.blockedKeywords,
+    excludeVideoIds,
+    watchedThreshold: settings.watchedThreshold
   })
+  const libraryTotal = videoRepo.countSubscribedLibraryVideos()
 
   return {
     items,
     nextCursor,
     source: 'subscriptions',
-    mode: input.mode
+    mode: input.mode,
+    matchingTotal,
+    libraryTotal
   }
 }
 
-export async function refreshSubscriptionsAndUploads(): Promise<{
+export async function refreshSubscriptionsAndUploads(
+  onProgress?: (progress: {
+    phase: 'fetching' | 'subscriptions' | 'uploads' | 'done'
+    current: number
+    total: number
+    channelTitle?: string
+    channelsRegistered?: number
+    detail?: string
+  }) => void
+): Promise<{
   channels: number
   videos: number
+  failedChannels: number
+  failures: string[]
 }> {
   const provider = getYouTubeProvider()
-  const subscriptions = await provider.getSubscriptions()
 
-  channelRepo.markAllUnsubscribed()
+  onProgress?.({
+    phase: 'fetching',
+    current: 0,
+    total: 0,
+    detail: 'Asking YouTube for your subscription list…'
+  })
 
-  let videos = 0
-  for (const sub of subscriptions) {
-    let channel = sub
-    try {
-      channel = await provider.getChannel(sub.id)
-    } catch {
-      // Keep subscription snippet if channel details fail.
+  // Fetch the full YouTube list BEFORE touching local subscribed flags.
+  const subscriptions = await provider.getSubscriptions({
+    onPage: ({ loaded, page, status }) => {
+      onProgress?.({
+        phase: 'fetching',
+        current: loaded,
+        total: Math.max(loaded, page * 50),
+        detail:
+          status === 'requesting'
+            ? `Requesting YouTube subscription page ${page}… (${loaded} so far)`
+            : `Got page ${page} — ${loaded} channels so far`
+      })
     }
+  })
+  const youtubeIds = new Set(subscriptions.map((sub) => sub.id))
 
+  // Locally added feed channels must survive a Google sync.
+  const localOnlyIds = channelRepo
+    .listChannels({ subscribedOnly: true })
+    .filter((channel) => !youtubeIds.has(channel.id))
+    .map((channel) => channel.id)
+
+  // Phase 1 — restore the full subscription roster quickly (no uploads yet).
+  onProgress?.({
+    phase: 'subscriptions',
+    current: 0,
+    total: subscriptions.length,
+    detail: `Saving ${subscriptions.length} channels locally…`
+  })
+  for (const sub of subscriptions) {
+    const local = channelRepo.getChannel(sub.id)
     channelRepo.upsertChannel({
-      id: channel.id,
-      title: channel.title,
-      description: channel.description,
-      thumbnailUrl: channel.thumbnailUrl,
-      uploadsPlaylistId: channel.uploadsPlaylistId,
+      id: sub.id,
+      title: sub.title,
+      description: sub.description ?? local?.description,
+      thumbnailUrl: sub.thumbnailUrl ?? local?.thumbnailUrl,
+      uploadsPlaylistId: local?.uploadsPlaylistId,
       subscribed: true,
       fetchedAt: new Date().toISOString()
     })
+  }
+  channelRepo.reconcileYoutubeSubscriptions(youtubeIds, localOnlyIds)
+  onProgress?.({
+    phase: 'subscriptions',
+    current: subscriptions.length,
+    total: subscriptions.length,
+    channelsRegistered: subscriptions.length,
+    detail: `Restored ${subscriptions.length} channels — fetching newest uploads next…`
+  })
 
-    videos += await syncChannelUploads(channel, provider, { maxPages: 3 })
+  // Phase 2 — newest uploads per channel (continue on errors; don't drop the roster).
+  let videos = 0
+  let failedChannels = 0
+  const failures: string[] = []
+  let index = 0
+
+  for (const sub of subscriptions) {
+    index += 1
+    onProgress?.({
+      phase: 'uploads',
+      current: index,
+      total: subscriptions.length,
+      channelTitle: sub.title,
+      channelsRegistered: subscriptions.length,
+      detail: `Uploads ${index}/${subscriptions.length}: ${sub.title}`
+    })
+
+    try {
+      let channel: ProviderChannel = sub
+      const local = channelRepo.getChannel(sub.id)
+      if (local?.uploadsPlaylistId) {
+        channel = {
+          ...sub,
+          uploadsPlaylistId: local.uploadsPlaylistId,
+          description: local.description ?? sub.description,
+          thumbnailUrl: local.thumbnailUrl ?? sub.thumbnailUrl
+        }
+      } else {
+        try {
+          channel = await provider.getChannel(sub.id)
+        } catch {
+          // Keep subscription snippet if details fail; uploads sync may still work later.
+        }
+      }
+
+      channelRepo.upsertChannel({
+        id: channel.id,
+        title: channel.title,
+        description: channel.description,
+        thumbnailUrl: channel.thumbnailUrl,
+        uploadsPlaylistId: channel.uploadsPlaylistId,
+        subscribed: true,
+        fetchedAt: new Date().toISOString()
+      })
+
+      // Newest pages per channel on bulk sync. Channel tab Refresh goes deeper.
+      videos += await syncChannelUploads(channel, provider, { maxPages: BULK_SYNC_UPLOAD_PAGES })
+    } catch (err) {
+      failedChannels += 1
+      const message = err instanceof Error ? err.message : String(err)
+      failures.push(`${sub.title}: ${message}`)
+      try {
+        channelRepo.upsertChannel({
+          id: sub.id,
+          title: sub.title,
+          description: sub.description,
+          thumbnailUrl: sub.thumbnailUrl,
+          subscribed: true,
+          fetchedAt: new Date().toISOString()
+        })
+      } catch {
+        // ignore
+      }
+    }
   }
 
-  return { channels: subscriptions.length, videos }
+  onProgress?.({
+    phase: 'done',
+    current: subscriptions.length,
+    total: subscriptions.length,
+    channelsRegistered: subscriptions.length,
+    detail: `Done — ${subscriptions.length} channels, ${videos} videos`
+  })
+
+  return {
+    channels: subscriptions.length,
+    videos,
+    failedChannels,
+    failures: failures.slice(0, 8)
+  }
 }
 
 /** Pull latest uploads for one channel from YouTube into the local library. */
@@ -105,7 +244,9 @@ export async function refreshChannelUploads(channelId: string): Promise<{ videos
     fetchedAt: new Date().toISOString()
   })
 
-  const videos = await syncChannelUploads(remote, provider, { maxPages: 5 })
+  const videos = await syncChannelUploads(remote, provider, {
+    maxPages: CHANNEL_REFRESH_UPLOAD_PAGES
+  })
   return { videos }
 }
 
@@ -141,7 +282,7 @@ export async function subscribeChannel(channelId: string): Promise<
   })
 
   try {
-    await syncChannelUploads(remote, provider, { maxPages: 3 })
+    await syncChannelUploads(remote, provider, { maxPages: SUBSCRIBE_UPLOAD_PAGES })
   } catch {
     // Channel row is enough; uploads can arrive on the next full sync.
   }

@@ -1,0 +1,27 @@
+---
+description: Keep MyYouTube user-support docs in sync with behaviour changes
+alwaysApply: true
+---
+
+# Support documentation
+
+When a change affects user-visible behaviour, update the matching support doc in the same change, then rebuild the bundle.
+
+| Change | Update |
+| --- | --- |
+| Screen, label, or workflow | `docs/user-guide.md`, `docs/FAQ.md` |
+| Setting, default, or storage path | `docs/configuration.md` |
+| Limit, IPC, or error code | `docs/reference.md` |
+| New or changed error text | `docs/troubleshooting.md`, `docs/reference.md`, `docs/FAQ.md` |
+| Sync, playback, or filter rules | user guide, reference, FAQ, troubleshooting |
+| Install or Google setup step | `docs/getting-started.md` |
+| Removed feature | Delete the instructions; note it in `docs/roadmap.md` only if a decision records it |
+| Deferred vs shipped | `docs/product.md` and `docs/roadmap.md` |
+
+Then run `npm run docs:bundle`. Do not hand-edit `AI-SUPPORT.md`.
+
+`npm run docs:check` must pass: it compares `AI-SUPPORT.md` to the sources and checks that `README.md` links to `AI-SUPPORT.md`. It must not rewrite files.
+
+Leave engineering specs (`PRODUCT_SPEC.md`, `DECISIONS.md`, `ARCHITECTURE.md`) accurate when a product lock changes. Do not overwrite `ARCHITECTURE.md` by adding a case-variant `architecture.md` (Windows). Support architecture is `docs/app-architecture.md`.
+
+Do not invent features in the FAQ. Source code wins over these docs.

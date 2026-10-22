@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { IpcChannels } from '@shared/ipc/channels'
-import type { MyYouTubeApi } from '@shared/ipc/api'
+import type { MyYouTubeApi, ChannelSyncProgress } from '@shared/ipc/api'
 import type { Result } from '@shared/result'
 
 async function invoke<T>(channel: string, payload?: unknown): Promise<Result<T>> {
@@ -53,6 +53,15 @@ const api: MyYouTubeApi = {
     unsubscribe: (channelId) => invoke(IpcChannels.channelsUnsubscribe, { channelId }),
     subscribe: (channelId) => invoke(IpcChannels.channelsSubscribe, { channelId }),
     syncSubscriptions: () => invoke(IpcChannels.channelsSyncSubscriptions),
+    onSyncProgress: (handler) => {
+      const listener = (_event: unknown, progress: ChannelSyncProgress): void => {
+        handler(progress)
+      }
+      ipcRenderer.on(IpcChannels.channelsSyncProgress, listener)
+      return () => {
+        ipcRenderer.removeListener(IpcChannels.channelsSyncProgress, listener)
+      }
+    },
     refreshUploads: (channelId) => invoke(IpcChannels.channelsRefreshUploads, { channelId })
   },
   videos: {

@@ -14,9 +14,14 @@ function delay(ms = 40): Promise<void> {
 export class MockYouTubeProvider implements YouTubeProvider {
   readonly name = 'mock' as const
 
-  async getSubscriptions(): Promise<ProviderChannel[]> {
+  async getSubscriptions(opts?: {
+    onPage?: (info: { loaded: number; page: number; status: 'requesting' | 'received' }) => void
+  }): Promise<ProviderChannel[]> {
     await delay()
-    return mockChannels.map((c) => ({ ...c }))
+    opts?.onPage?.({ loaded: 0, page: 1, status: 'requesting' })
+    const channels = mockChannels.map((c) => ({ ...c }))
+    opts?.onPage?.({ loaded: channels.length, page: 1, status: 'received' })
+    return channels
   }
 
   async getChannel(channelId: string): Promise<ProviderChannel> {

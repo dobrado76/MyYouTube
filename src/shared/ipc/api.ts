@@ -24,6 +24,15 @@ export type HardwareAccelerationStatus = {
   restartRequired: boolean
 }
 
+export type ChannelSyncProgress = {
+  phase: 'fetching' | 'subscriptions' | 'uploads' | 'done'
+  current: number
+  total: number
+  channelTitle?: string
+  channelsRegistered?: number
+  detail?: string
+}
+
 export type MyYouTubeApi = {
   auth: {
     getStatus: () => Promise<Result<AuthStatus>>
@@ -51,7 +60,9 @@ export type MyYouTubeApi = {
   }
   feed: {
     query: (input?: Partial<FeedQueryInput>) => Promise<Result<FeedPage>>
-    refresh: () => Promise<Result<{ channels: number; videos: number }>>
+    refresh: () => Promise<
+      Result<{ channels: number; videos: number; failedChannels: number; failures: string[] }>
+    >
   }
   channels: {
     list: () => Promise<Result<Channel[]>>
@@ -64,7 +75,11 @@ export type MyYouTubeApi = {
     unsubscribe: (channelId: string) => Promise<Result<Channel>>
     /** Add to MyYouTube feed (local; YouTube subscription unchanged). */
     subscribe: (channelId: string) => Promise<Result<Channel>>
-    syncSubscriptions: () => Promise<Result<{ channels: number; videos: number }>>
+    syncSubscriptions: () =>
+      Promise<
+        Result<{ channels: number; videos: number; failedChannels: number; failures: string[] }>
+      >
+    onSyncProgress: (handler: (progress: ChannelSyncProgress) => void) => () => void
     refreshUploads: (channelId: string) => Promise<Result<{ videos: number }>>
   }
   videos: {

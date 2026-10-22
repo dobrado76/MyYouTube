@@ -57,6 +57,9 @@ export function ChannelPage({ active }: Props): JSX.Element {
   const [filterExhausted, setFilterExhausted] = useState(false)
   const loadGeneration = useRef(0)
   const paginationRef = useRef<FeedPaginationState>(INITIAL_FEED_PAGINATION_STATE)
+  const autoFillRef = useRef(false)
+  const cursorRef = useRef<string | null>(null)
+  cursorRef.current = cursor
 
   useEffect(() => {
     if (!routeChannelId) return
@@ -64,15 +67,22 @@ export function ChannelPage({ active }: Props): JSX.Element {
     openChannel({ id: routeChannelId, title: routeChannelId })
   }, [routeChannelId, activeChannel?.id, openChannel])
 
+  // Abort in-flight work when the tab is hidden (keep-alive leaves `activated` true).
   useEffect(() => {
-    if (activated) return
+    if (active) return
     loadGeneration.current += 1
-  }, [activated])
+    autoFillRef.current = false
+    setLoading(false)
+    setLoadingMore(false)
+    setRefreshing(false)
+  }, [active])
 
   const load = useCallback(
     async (opts?: { reset?: boolean; cursor?: string | null }) => {
-      if (!channelId) return
+      if (!channelId) return null
       const generation = ++loadGeneration.current
+      const isReset = Boolean(opts?.reset)
+      if (isReset) setLoading(true)
       setError(null)
       try {
         const page = await callApi(() =>
@@ -88,7 +98,7 @@ export function ChannelPage({ active }: Props): JSX.Element {
             limit: 24
           })
         )
-        if (generation !== loadGeneration.current) return
+        if (generation !== loadGeneration.current) return null
 
         const omitted = useAppStore.getState().omittedDiscoveryIds
         const startPagination = opts?.reset
@@ -117,11 +127,13 @@ export function ChannelPage({ active }: Props): JSX.Element {
           const fromPage = page.items[0]?.channelTitle
           if (fromPage) openChannel({ id: channelId, title: fromPage })
         }
+        return applied
       } catch (err) {
-        if (generation !== loadGeneration.current) return
+        if (generation !== loadGeneration.current) return null
         setError(err instanceof Error ? err.message : 'Failed to load channel')
+        return null
       } finally {
-        if (generation === loadGeneration.current) setLoading(false)
+        if (isReset && generation === loadGeneration.current) setLoading(false)
       }
     },
     [channelId, hideShorts, unwatchedOnly, openChannel]
@@ -160,31 +172,40 @@ export function ChannelPage({ active }: Props): JSX.Element {
     [items, sortedIds, unwatchedOnly, settings.watchedThreshold, omittedIds]
   )
 
-
   // After triage clears the visible page, keep fetching until something shows or the feed ends.
+  // Single-flight loop: do not re-enter on loadingMore/cursor updates (that caused the flash).
   useEffect(() => {
-    if (!activated || loading || loadingMore || refreshing || error) return
-    if (visibleItems.length > 0 || !cursor || filterExhausted) return
+    if (!active || loading || refreshing || error) return
+    if (visibleItems.length > 0 || filterExhausted) return
+    if (!cursorRef.current) return
+    if (autoFillRef.current) return
+
     let cancelled = false
+    autoFillRef.current = true
     setLoadingMore(true)
-    void load({ cursor }).finally(() => {
-      if (!cancelled) setLoadingMore(false)
-    })
+    let nextCursor: string | null = cursorRef.current
+
+    void (async () => {
+      try {
+        while (!cancelled && nextCursor) {
+          const applied = await load({ cursor: nextCursor })
+          if (cancelled || !applied) break
+          if (applied.visibleCount > 0) break
+          if (applied.pagination.exhausted || !applied.nextCursor) break
+          nextCursor = applied.nextCursor
+        }
+      } finally {
+        autoFillRef.current = false
+        if (!cancelled) setLoadingMore(false)
+      }
+    })()
+
     return () => {
       cancelled = true
+      autoFillRef.current = false
       setLoadingMore(false)
     }
-  }, [
-    activated,
-    visibleItems.length,
-    cursor,
-    filterExhausted,
-    loading,
-    loadingMore,
-    refreshing,
-    error,
-    load
-  ])
+  }, [active, visibleItems.length, filterExhausted, loading, refreshing, error, load])
 
   async function loadMore(): Promise<void> {
     if (!cursor || loadingMore || filterExhausted) return

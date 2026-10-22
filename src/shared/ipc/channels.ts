@@ -24,6 +24,7 @@ export const IpcChannels = {
   channelsUnsubscribe: 'channels.unsubscribe',
   channelsSubscribe: 'channels.subscribe',
   channelsSyncSubscriptions: 'channels.syncSubscriptions',
+  channelsSyncProgress: 'channels.syncProgress',
   channelsRefreshUploads: 'channels.refreshUploads',
 
   videosGet: 'videos.get',

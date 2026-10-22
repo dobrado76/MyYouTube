@@ -1,8 +1,26 @@
 # Documentation index — MyYouTube
 
-Start with the root [README.md](../README.md) for install and overview. Use this page as a map of the rest of the docs.
+Start with the root [README.md](../README.md) for install and overview. For AI-assisted help, download the root [AI-SUPPORT.md](../AI-SUPPORT.md) (generated; do not edit it by hand).
 
-## Reading order
+## User support set
+
+These files are the source of `AI-SUPPORT.md`. Rebuild with `npm run docs:bundle`. Check with `npm run docs:check`.
+
+| Doc | Use when |
+| --- | --- |
+| [product.md](product.md) | What the app is and is not |
+| [getting-started.md](getting-started.md) | Install, mock vs live, first sync |
+| [user-guide.md](user-guide.md) | Every screen and control |
+| [configuration.md](configuration.md) | Settings, defaults, userData paths |
+| [reference.md](reference.md) | Limits, errors, IPC behaviour |
+| [troubleshooting.md](troubleshooting.md) | Symptoms and safe recovery |
+| [app-architecture.md](app-architecture.md) | Processes and boundaries (does not replace [ARCHITECTURE.md](ARCHITECTURE.md)) |
+| [development.md](development.md) | Build, test, doc bundle |
+| [FAQ.md](FAQ.md) | Question-shaped answers |
+| [roadmap.md](roadmap.md) | Shipped vs deferred |
+| [support-evaluation.md](support-evaluation.md) | Maintainer prompts; not bundled |
+
+## Reading order (engineering)
 
 ### New contributors / first clone
 

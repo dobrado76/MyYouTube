@@ -43,11 +43,17 @@ export class YouTubeApiProvider implements YouTubeProvider {
     throw mapYouTubeHttpError(response.status, bodyText, path)
   }
 
-  async getSubscriptions(): Promise<ProviderChannel[]> {
+  async getSubscriptions(opts?: {
+    onPage?: (info: { loaded: number; page: number; status: 'requesting' | 'received' }) => void
+  }): Promise<ProviderChannel[]> {
     const channels: ProviderChannel[] = []
     let pageToken: string | undefined
+    let page = 0
 
     do {
+      page += 1
+      opts?.onPage?.({ loaded: channels.length, page, status: 'requesting' })
+
       const params: Record<string, string> = {
         part: 'snippet',
         mine: 'true',
@@ -77,6 +83,7 @@ export class YouTubeApiProvider implements YouTubeProvider {
           thumbnailUrl: item.snippet?.thumbnails?.default?.url ?? null
         })
       }
+      opts?.onPage?.({ loaded: channels.length, page, status: 'received' })
       pageToken = data.nextPageToken
     } while (pageToken)
 
@@ -129,7 +136,7 @@ export class YouTubeApiProvider implements YouTubeProvider {
     const params: Record<string, string> = {
       part: 'snippet,contentDetails',
       playlistId,
-      maxResults: '25'
+      maxResults: '50'
     }
     if (opts?.pageToken) params.pageToken = opts.pageToken
 

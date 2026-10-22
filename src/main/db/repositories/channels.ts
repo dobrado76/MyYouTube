@@ -107,3 +107,23 @@ export function setChannelPreference(channelId: string, preference: ChannelPrefe
 export function markAllUnsubscribed(): void {
   getDb().prepare('UPDATE channels SET subscribed = 0').run()
 }
+
+/**
+ * After a YouTube subscription sync: drop feed membership for channels that are no longer
+ * on YouTube, while keeping locally-added subscriptions (`preserveIds`).
+ * Does not set `local_unsubscribed` (that flag is user intent only).
+ */
+export function reconcileYoutubeSubscriptions(
+  youtubeIds: Iterable<string>,
+  preserveIds: Iterable<string> = []
+): void {
+  const keep = new Set<string>([...youtubeIds, ...preserveIds])
+  const subscribed = listChannels({ subscribedOnly: true })
+  const db = getDb()
+  const stmt = db.prepare('UPDATE channels SET subscribed = 0 WHERE id = ?')
+  for (const channel of subscribed) {
+    if (!keep.has(channel.id)) {
+      stmt.run(channel.id)
+    }
+  }
+}

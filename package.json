@@ -1,7 +1,7 @@
 {
   "name": "myyoutube",
   "productName": "MyYouTube",
-  "version": "0.1.16",
+  "version": "0.1.17",
   "description": "Personal YouTube client with local filtering and transparent ranking",
   "main": "./out/main/index.js",
   "author": "MeaningfulnessMediaGroup",
@@ -29,6 +29,8 @@
     "bump:patch": "node scripts/bump-patch.mjs",
     "clean:releases": "node scripts/clean-old-releases.mjs",
     "icons": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/generate-icon.ps1",
+    "docs:bundle": "node scripts/bundle-ai-support.mjs",
+    "docs:check": "node scripts/bundle-ai-support.mjs --check",
     "dist": "npm run bump:patch && npm run build && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --win && npm run clean:releases",
     "postinstall": "electron-builder install-app-deps"
   },

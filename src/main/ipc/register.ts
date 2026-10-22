@@ -57,6 +57,45 @@ function wrap(handler: Handler) {
   }
 }
 
+/** Only one YouTube subscription sync at a time (Home Refresh no longer starts this). */
+let subscriptionSyncInFlight: Promise<Result<unknown>> | null = null
+
+async function runSubscriptionSync(
+  event: Electron.IpcMainInvokeEvent
+): Promise<Result<unknown>> {
+  if (subscriptionSyncInFlight) {
+    return err(
+      'busy',
+      'A subscription sync is already running. Wait for it to finish, or check Subscriptions.'
+    )
+  }
+
+  subscriptionSyncInFlight = (async () => {
+    try {
+      const value = await feed.refreshSubscriptionsAndUploads((progress) => {
+        if (!event.sender.isDestroyed()) {
+          event.sender.send(IpcChannels.channelsSyncProgress, progress)
+        }
+      })
+      return ok(value)
+    } catch (error) {
+      if (error instanceof ZodError) {
+        return err('validation', error.errors.map((e) => e.message).join('; '))
+      }
+      const code =
+        typeof error === 'object' && error && 'code' in error
+          ? String((error as { code: string }).code)
+          : 'internal'
+      const message = error instanceof Error ? error.message : 'Unknown error'
+      return err(code, message)
+    } finally {
+      subscriptionSyncInFlight = null
+    }
+  })()
+
+  return subscriptionSyncInFlight
+}
+
 export function registerIpcHandlers(): void {
   ipcMain.handle(
     IpcChannels.authGetStatus,
@@ -137,10 +176,7 @@ export function registerIpcHandlers(): void {
       return feed.queryFeed(input)
     })
   )
-  ipcMain.handle(
-    IpcChannels.feedRefresh,
-    wrap(() => feed.refreshSubscriptionsAndUploads())
-  )
+  ipcMain.handle(IpcChannels.feedRefresh, (event) => runSubscriptionSync(event))
 
   ipcMain.handle(
     IpcChannels.channelsList,
@@ -183,10 +219,7 @@ export function registerIpcHandlers(): void {
       return channel
     })
   )
-  ipcMain.handle(
-    IpcChannels.channelsSyncSubscriptions,
-    wrap(() => feed.refreshSubscriptionsAndUploads())
-  )
+  ipcMain.handle(IpcChannels.channelsSyncSubscriptions, (event) => runSubscriptionSync(event))
   ipcMain.handle(
     IpcChannels.channelsRefreshUploads,
     wrap((raw) => {

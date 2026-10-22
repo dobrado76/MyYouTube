@@ -33,7 +33,9 @@ export type SearchQuery = {
 
 export interface YouTubeProvider {
   readonly name: 'mock' | 'live'
-  getSubscriptions(): Promise<ProviderChannel[]>
+  getSubscriptions(opts?: {
+    onPage?: (info: { loaded: number; page: number; status: 'requesting' | 'received' }) => void
+  }): Promise<ProviderChannel[]>
   getChannel(channelId: string): Promise<ProviderChannel>
   getChannelUploads(
     channelId: string,

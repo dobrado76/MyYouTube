@@ -31,7 +31,11 @@ export const FeedPageSchema = z.object({
   items: z.array(VideoSchema),
   nextCursor: z.string().nullable(),
   source: z.literal('subscriptions'),
-  mode: FeedModeSchema
+  mode: FeedModeSchema,
+  /** Videos matching current filters (full library, not just this page). */
+  matchingTotal: z.number().int().nonnegative().optional(),
+  /** All non-hidden videos from subscribed unmuted channels (ignores feed filters). */
+  libraryTotal: z.number().int().nonnegative().optional()
 })
 
 export type FeedPage = z.infer<typeof FeedPageSchema>

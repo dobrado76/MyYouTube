@@ -11,6 +11,20 @@
 | **License** | [MIT](LICENSE) |
 | **Spec** | [PLAN.md](PLAN.md) · [docs/](docs/) |
 
+## Need help? Ask an AI assistant
+
+The full support guide, FAQ, and troubleshooting notes are in [`AI-SUPPORT.md`](AI-SUPPORT.md).
+
+1. Download [`AI-SUPPORT.md`](AI-SUPPORT.md) from this repository.
+2. Upload or attach that file to any AI assistant you choose.
+3. Ask your question or describe what you see (include the app version from Settings → Updates if the answer might depend on it).
+
+That file is the project-specific knowledge base. The assistant should follow it and not invent buttons, download features, or YouTube actions this app does not perform.
+
+Shorter reads: [docs/getting-started.md](docs/getting-started.md), [docs/user-guide.md](docs/user-guide.md), [docs/FAQ.md](docs/FAQ.md), [docs/troubleshooting.md](docs/troubleshooting.md).
+
+If the guide does not solve it, open a [GitHub issue](https://github.com/MeaningfulnessMediaGroup/MyYoutube/issues) with the app version, the exact error text, and what you expected. Do not paste client secrets, OAuth tokens, or `google-oauth.json`. There is no support desk and no promised response time.
+
 ---
 
 ## Why
@@ -97,6 +111,8 @@ npm run dev
 | `npm run lint` | ESLint (zero warnings) |
 | `npm run format` | Prettier |
 | `npm run icons` | Regenerate app icons from `resources/` |
+| `npm run docs:bundle` | Rebuild `AI-SUPPORT.md` from `docs/` sources |
+| `npm run docs:check` | Fail if `AI-SUPPORT.md` is stale or the README link is missing |
 
 Installer output example: `release/MyYouTube Setup 0.1.x.exe` (unsigned by default).
 

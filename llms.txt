@@ -1,0 +1,10 @@
+# MyYouTube
+
+Optional discovery pointer for AI tools. This file is not the manual.
+
+- Product: MyYouTube — personal Windows YouTube client (local subscription library, official IFrame player).
+- Support knowledge base: [AI-SUPPORT.md](AI-SUPPORT.md) (version 0.1.17 in the current tree).
+- Repository: https://github.com/MeaningfulnessMediaGroup/MyYoutube
+- Issues: https://github.com/MeaningfulnessMediaGroup/MyYoutube/issues
+
+Assistants should load `AI-SUPPORT.md`, not infer features from this stub.

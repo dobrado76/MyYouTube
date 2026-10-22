@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type JSX } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { Channel, ChannelPreference } from '@shared/schemas/channel'
+import type { ChannelSyncProgress } from '@shared/ipc/api'
 import {
   PrefBlockedIcon,
   PrefFavouriteIcon,
@@ -30,7 +31,10 @@ export function SubscriptionsPage(): JSX.Element {
   const { auth, signIn, openChannel, notifyFeedRefreshed } = useAppStore()
   const [channels, setChannels] = useState<Channel[]>([])
   const [error, setError] = useState<string | null>(null)
+  const [status, setStatus] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [progress, setProgress] = useState<ChannelSyncProgress | null>(null)
+  const [elapsedSec, setElapsedSec] = useState(0)
   const [filterInput, setFilterInput] = useState('')
   const [filterQuery, setFilterQuery] = useState('')
 
@@ -47,6 +51,18 @@ export function SubscriptionsPage(): JSX.Element {
   useEffect(() => {
     void load()
   }, [])
+
+  useEffect(() => {
+    if (!busy) {
+      setElapsedSec(0)
+      return
+    }
+    const started = Date.now()
+    const timer = window.setInterval(() => {
+      setElapsedSec(Math.floor((Date.now() - started) / 1000))
+    }, 1000)
+    return () => window.clearInterval(timer)
+  }, [busy])
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -67,14 +83,43 @@ export function SubscriptionsPage(): JSX.Element {
 
   async function sync(): Promise<void> {
     setBusy(true)
+    setProgress({
+      phase: 'fetching',
+      current: 0,
+      total: 0,
+      detail: 'Starting sync…'
+    })
+    setError(null)
+    setStatus(null)
+    const stopProgress = window.myyoutube.channels.onSyncProgress((next) => {
+      setProgress(next)
+      // Roster is written first — reload so the list jumps from ~4 to ~200 quickly.
+      if (next.phase === 'subscriptions' || (next.phase === 'uploads' && next.current === 1)) {
+        void load()
+      }
+    })
     try {
       if (!auth?.signedIn) await signIn()
-      await callApi(() => window.myyoutube.channels.syncSubscriptions())
+      const result = await callApi(() => window.myyoutube.channels.syncSubscriptions())
       notifyFeedRefreshed()
       await load()
+      const summary = `Cached ${result.videos.toLocaleString()} uploads across ${result.channels.toLocaleString()} channels (newest ~100 per channel). Personal feed shows 24 at a time — use Load more.`
+      if (result.failedChannels > 0) {
+        setError(
+          `${summary} ${result.failedChannels} upload sync(s) failed` +
+            (result.failures[0] ? ` (${result.failures[0]})` : '')
+        )
+        setStatus(null)
+      } else {
+        setError(null)
+        setStatus(summary)
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Sync failed')
+      setStatus(null)
     } finally {
+      stopProgress()
+      setProgress(null)
       setBusy(false)
     }
   }
@@ -98,18 +143,60 @@ export function SubscriptionsPage(): JSX.Element {
     return 'normal'
   }
 
+  const syncLabel = (() => {
+    if (!busy) return 'Sync subscriptions'
+    if (!progress) return `Syncing… ${elapsedSec}s`
+    if (progress.phase === 'fetching') {
+      if (progress.current > 0) {
+        return `List ${progress.current}+ (${elapsedSec}s)`
+      }
+      return `Page 1… (${elapsedSec}s)`
+    }
+    if (progress.phase === 'subscriptions') {
+      return `Saving ${progress.channelsRegistered ?? progress.total}…`
+    }
+    if (progress.phase === 'uploads') {
+      const pct =
+        progress.total > 0 ? Math.round((progress.current / progress.total) * 100) : 0
+      return `Uploads ${progress.current}/${progress.total} · ${pct}%`
+    }
+    return 'Finishing…'
+  })()
+
   return (
     <section>
       <div className="page-header">
         <div>
           <h1>Subscriptions</h1>
+          <p className="muted" style={{ margin: '0.35rem 0 0' }}>
+            {channels.length} channel{channels.length === 1 ? '' : 's'}
+            {busy
+              ? ` · ${progress?.detail ?? 'working…'} · ${elapsedSec}s`
+              : ''}
+          </p>
         </div>
         <button type="button" className="primary" disabled={busy} onClick={() => void sync()}>
-          {busy ? 'Syncing…' : 'Sync subscriptions'}
+          {syncLabel}
         </button>
       </div>
 
+      {busy ? (
+        <p className="muted" role="status" aria-live="polite">
+          {progress?.detail ?? 'Sync in progress…'}
+          {progress?.phase === 'uploads' && progress.channelTitle
+            ? ` (${progress.channelTitle})`
+            : ''}
+          . For ~200 channels, uploads can take several minutes — the timer means it’s still
+          alive.
+        </p>
+      ) : null}
+
       {error ? <p className="error">{error}</p> : null}
+      {status && !error ? (
+        <p className="muted" role="status">
+          {status}
+        </p>
+      ) : null}
 
       {channels.length === 0 ? (
         <p className="empty">No subscribed channels cached yet. Sync to import them.</p>
